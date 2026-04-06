@@ -1,0 +1,33 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Word {
+  id              String    @id @default(cuid())
+  level           String
+  kanji           String?
+  reading         String
+  meaning         String
+  example         String
+  exampleReading  String?
+  exampleMeaning  String?
+  userWord        UserWord?
+}
+
+model UserWord {
+  id           String   @id @default(cuid())
+  wordId       String   @unique
+  word         Word     @relation(fields: [wordId], references: [id], onDelete: Cascade)
+  wrongCount   Int      @default(0)
+  /** 객관식·세트 시험 등 정답 처리 누적 */
+  correctCount Int      @default(0)
+  isExcluded   Boolean  @default(false)
+  /** 단어 공부 화면에서 연 단어만 메인 시험 풀에 포함 */
+  seenInStudy  Boolean  @default(false)
+  lastSeenAt   DateTime @default(now())
+}

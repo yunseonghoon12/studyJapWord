@@ -1,0 +1,48 @@
+{
+  "name": "word-study",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "dev": "next dev",
+    "dev:all": "next dev",
+    "build": "prisma generate && next build",
+    "start": "next start",
+    "lint": "next lint",
+    "db:push": "prisma db push",
+    "db:generate": "prisma generate",
+    "db:reset-client": "node scripts/reset-prisma-client.cjs",
+    "db:studio": "prisma generate && prisma studio",
+    "db:seed": "prisma db seed",
+    "db:clear": "tsx scripts/clear-data.ts",
+    "db:reset": "tsx scripts/reset-database.ts",
+    "db:drop-word-legacy": "tsx scripts/drop-word-legacy-columns.ts",
+    "n5:build": "tsx scripts/build-n5-1000.ts",
+    "postinstall": "prisma generate"
+  },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.3.0",
+    "framer-motion": "^12.38.0",
+    "next": "^15.1.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@types/kuromoji": "^0.1.3",
+    "@types/node": "^22.10.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "csv-parse": "^6.2.1",
+    "eslint": "^9.17.0",
+    "eslint-config-next": "^15.1.0",
+    "kuromoji": "^0.1.2",
+    "postcss": "^8.4.49",
+    "prisma": "^6.3.0",
+    "tailwindcss": "^3.4.16",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "wanakana": "^5.3.1"
+  }
+}
