@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { readJsonResponse } from "@/lib/read-json-response";
 
 const CHECK_KEY = "wordStudy.attendanceDays";
 
@@ -12,7 +13,7 @@ function ymd(d: Date): string {
   return `${y}-${m}-${day}`;
 }
 
-function readSet(): Set<string> {
+function readLocalBackup(): Set<string> {
   if (typeof window === "undefined") return new Set<string>();
   try {
     const raw = localStorage.getItem(CHECK_KEY);
@@ -24,26 +25,84 @@ function readSet(): Set<string> {
   }
 }
 
-function writeSet(s: Set<string>) {
-  if (typeof window === "undefined") return;
-  localStorage.setItem(CHECK_KEY, JSON.stringify([...s].sort()));
-}
-
 export default function AttendancePage() {
   const today = new Date();
-  const [days, setDays] = useState<Set<string>>(() => readSet());
+  const [days, setDays] = useState<Set<string>>(new Set());
   const [anchor, setAnchor] = useState<Date>(
     () => new Date(today.getFullYear(), today.getMonth(), 1)
   );
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/attendance");
+      const data = await readJsonResponse<{
+        days?: string[];
+        error?: string;
+      }>(res);
+      if (!res.ok) throw new Error(data.error ?? "출석 목록을 불러올 수 없습니다.");
+      let list = data.days ?? [];
+
+      if (list.length === 0 && typeof window !== "undefined") {
+        const backup = readLocalBackup();
+        if (backup.size > 0) {
+          const importRes = await fetch("/api/attendance", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ importDays: [...backup] }),
+          });
+          const imported = await readJsonResponse<{
+            days?: string[];
+            error?: string;
+          }>(importRes);
+          if (importRes.ok) {
+            localStorage.removeItem(CHECK_KEY);
+            list = imported.days ?? list;
+          }
+        }
+      }
+
+      setDays(new Set(list));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "오류");
+      setDays(readLocalBackup());
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
 
   const todayKey = ymd(today);
   const checkedToday = days.has(todayKey);
 
-  const markToday = () => {
-    const next = new Set(days);
-    next.add(todayKey);
-    writeSet(next);
-    setDays(next);
+  const markToday = async () => {
+    if (checkedToday || saving) return;
+    setSaving(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/attendance", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ day: todayKey }),
+      });
+      const data = await readJsonResponse<{
+        days?: string[];
+        error?: string;
+      }>(res);
+      if (!res.ok) throw new Error(data.error ?? "저장에 실패했습니다.");
+      setDays(new Set(data.days ?? []));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "저장 오류");
+    } finally {
+      setSaving(false);
+    }
   };
 
   const monthGrid = useMemo(() => {
@@ -75,11 +134,15 @@ export default function AttendancePage() {
         </Link>
         <button
           type="button"
-          onClick={markToday}
-          disabled={checkedToday}
+          onClick={() => void markToday()}
+          disabled={checkedToday || saving || loading}
           className="rounded-full border border-pink-200/80 bg-pink-50/80 px-4 py-2 text-sm font-semibold text-pink-700 transition hover:bg-pink-100/80 disabled:cursor-not-allowed disabled:opacity-60"
         >
-          {checkedToday ? "오늘 출석 완료 🌸" : "오늘 출석 체크 🌸"}
+          {checkedToday
+            ? "오늘 출석 완료 🌸"
+            : saving
+              ? "저장 중…"
+              : "오늘 출석 체크 🌸"}
         </button>
       </div>
 
@@ -88,55 +151,65 @@ export default function AttendancePage() {
         이번 달 공부한 날을 벚꽃으로 기록합니다.
       </p>
 
-      <section className="mt-5 rounded-2xl border border-pink-100/90 bg-white/80 p-4 shadow-sm backdrop-blur-sm">
-        <div className="mb-3 flex items-center justify-between">
-          <button
-            type="button"
-            onClick={() =>
-              setAnchor((d) => new Date(d.getFullYear(), d.getMonth() - 1, 1))
-            }
-            className="rounded-lg border border-zinc-200 px-3 py-1.5 text-sm text-zinc-700 hover:bg-zinc-50"
-          >
-            이전 달
-          </button>
-          <p className="text-base font-semibold text-zinc-800">
-            {anchor.getFullYear()}년 {anchor.getMonth() + 1}월
-          </p>
-          <button
-            type="button"
-            onClick={() =>
-              setAnchor((d) => new Date(d.getFullYear(), d.getMonth() + 1, 1))
-            }
-            className="rounded-lg border border-zinc-200 px-3 py-1.5 text-sm text-zinc-700 hover:bg-zinc-50"
-          >
-            다음 달
-          </button>
-        </div>
+      {error ? (
+        <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
+          {error}
+        </p>
+      ) : null}
 
-        <div className="grid grid-cols-7 gap-2 text-center text-xs text-zinc-500">
-          {["일", "월", "화", "수", "목", "금", "토"].map((d) => (
-            <div key={d} className="py-1">
-              {d}
-            </div>
-          ))}
-          {monthGrid.map((c) =>
-            c.day === 0 ? (
-              <div key={c.key} className="h-10 rounded-lg bg-transparent" />
-            ) : (
-              <div
-                key={c.key}
-                className={`flex h-10 items-center justify-center rounded-lg border text-sm ${
-                  c.checked
-                    ? "border-pink-200 bg-pink-50 text-pink-700"
-                    : "border-zinc-200 bg-white text-zinc-700"
-                }`}
-              >
-                {c.checked ? "🌸" : c.day}
+      {loading ? (
+        <p className="mt-8 text-center text-zinc-500">불러오는 중…</p>
+      ) : (
+        <section className="mt-5 rounded-2xl border border-pink-100/90 bg-white/80 p-4 shadow-sm backdrop-blur-sm">
+          <div className="mb-3 flex items-center justify-between">
+            <button
+              type="button"
+              onClick={() =>
+                setAnchor((d) => new Date(d.getFullYear(), d.getMonth() - 1, 1))
+              }
+              className="rounded-lg border border-zinc-200 px-3 py-1.5 text-sm text-zinc-700 hover:bg-zinc-50"
+            >
+              이전 달
+            </button>
+            <p className="text-base font-semibold text-zinc-800">
+              {anchor.getFullYear()}년 {anchor.getMonth() + 1}월
+            </p>
+            <button
+              type="button"
+              onClick={() =>
+                setAnchor((d) => new Date(d.getFullYear(), d.getMonth() + 1, 1))
+              }
+              className="rounded-lg border border-zinc-200 px-3 py-1.5 text-sm text-zinc-700 hover:bg-zinc-50"
+            >
+              다음 달
+            </button>
+          </div>
+
+          <div className="grid grid-cols-7 gap-2 text-center text-xs text-zinc-500">
+            {["일", "월", "화", "수", "목", "금", "토"].map((d) => (
+              <div key={d} className="py-1">
+                {d}
               </div>
-            )
-          )}
-        </div>
-      </section>
+            ))}
+            {monthGrid.map((c) =>
+              c.day === 0 ? (
+                <div key={c.key} className="h-10 rounded-lg bg-transparent" />
+              ) : (
+                <div
+                  key={c.key}
+                  className={`flex h-10 items-center justify-center rounded-lg border text-sm ${
+                    c.checked
+                      ? "border-pink-200 bg-pink-50 text-pink-700"
+                      : "border-zinc-200 bg-white text-zinc-700"
+                  }`}
+                >
+                  {c.checked ? "🌸" : c.day}
+                </div>
+              )
+            )}
+          </div>
+        </section>
+      )}
     </main>
   );
 }

@@ -8,6 +8,9 @@ export const dynamic = "force-dynamic";
 const HOME_MAIN_LINK =
   "flex h-14 items-center justify-center rounded-xl border border-pink-100/80 bg-pink-50/75 px-4 text-center text-lg font-medium text-zinc-800 shadow-sm backdrop-blur-sm transition hover:border-pink-900 hover:bg-pink-900 hover:text-white sm:flex-1";
 
+const HOME_ATTENDANCE_LINK =
+  "inline-flex items-center justify-center rounded-full border border-pink-200/80 bg-pink-50/80 px-5 py-2 text-sm font-semibold text-pink-700 shadow-sm backdrop-blur-sm transition hover:border-pink-300 hover:bg-pink-100/80";
+
 /** 메인 전용 배경 — `public/home-bg.png` 에 두면 됩니다. */
 const HOME_BG_URL = "/home-bg.png";
 
@@ -49,14 +52,10 @@ export default async function HomePage() {
         </p>
       )}
 
-      <AnimatedHomeMainLinks linkClassName={HOME_MAIN_LINK} />
-
-      <Link
-        href="/attendance"
-        className="mx-auto inline-flex items-center justify-center rounded-full border border-pink-200/80 bg-pink-50/80 px-5 py-2 text-sm font-semibold text-pink-700 shadow-sm transition hover:border-pink-300 hover:bg-pink-100/80"
-      >
-        출석체크 🌸
-      </Link>
+      <AnimatedHomeMainLinks
+        linkClassName={HOME_MAIN_LINK}
+        attendanceLinkClassName={HOME_ATTENDANCE_LINK}
+      />
 
       <Link
         href="/settings"

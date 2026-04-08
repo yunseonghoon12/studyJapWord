@@ -17,39 +17,22 @@ export function TestPageClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  const urlLevel = searchParams.get("level");
-  const urlSet = searchParams.get("set");
-  const urlBatchSize = searchParams.get("batchSize");
+  /** 문자열 키로만 파생해 `searchParams` 참조 변경으로 인한 중복 fetch를 줄입니다. */
+  const queryKey = searchParams.toString();
 
-  const initialLevel =
-    urlLevel && LEVELS.includes(urlLevel as (typeof LEVELS)[number])
-      ? urlLevel
-      : "N5";
-
-  const [level, setLevel] = useState(initialLevel);
-  const [setMode, setSetMode] = useState<{
-    setIndex: string;
-    batchSize: string;
-  } | null>(() =>
-    urlSet !== null && urlSet !== ""
-      ? {
-          setIndex: urlSet,
-          batchSize: urlBatchSize ?? "20",
-        }
-      : null
-  );
-
-  useEffect(() => {
-    const lv = searchParams.get("level");
-    const s = searchParams.get("set");
-    const bs = searchParams.get("batchSize");
-    if (lv && LEVELS.includes(lv as (typeof LEVELS)[number])) setLevel(lv);
-    if (s !== null && s !== "") {
-      setSetMode({ setIndex: s, batchSize: bs ?? "20" });
-    } else {
-      setSetMode(null);
-    }
-  }, [searchParams]);
+  const { level, setMode } = useMemo(() => {
+    const params = new URLSearchParams(queryKey);
+    const lv = params.get("level");
+    const levelResolved =
+      lv && LEVELS.includes(lv as (typeof LEVELS)[number]) ? lv : "N5";
+    const s = params.get("set");
+    const bs = params.get("batchSize");
+    const setModeResolved =
+      s !== null && s !== ""
+        ? { setIndex: s, batchSize: bs ?? "20" }
+        : null;
+    return { level: levelResolved, setMode: setModeResolved };
+  }, [queryKey]);
 
   const [questions, setQuestions] = useState<QuizQuestion[]>([]);
   const [needsStudy, setNeedsStudy] = useState(false);
@@ -62,53 +45,64 @@ export function TestPageClient() {
 
   const isSetPractice = setMode !== null;
 
-  const load = useCallback(async () => {
+  useEffect(() => {
+    const ac = new AbortController();
+
     setLoading(true);
     setError(null);
     setPicked(null);
     setEmptySet(false);
     setInsufficientLevel(false);
-    try {
-      const params = new URLSearchParams({
-        level,
-        limit: "12",
-      });
-      if (setMode) {
-        params.set("set", setMode.setIndex);
-        params.set("batchSize", setMode.batchSize);
-      }
-      const res = await fetch(`/api/test?${params.toString()}`);
-      const data = await readJsonResponse<{
-        questions?: QuizQuestion[];
-        needsStudy?: boolean;
-        emptySet?: boolean;
-        insufficientLevel?: boolean;
-        error?: string;
-      }>(res);
-      if (!res.ok) throw new Error(data.error ?? "시험을 불러올 수 없습니다.");
-      setQuestions(data.questions ?? []);
-      setNeedsStudy(Boolean(data.needsStudy));
-      setEmptySet(Boolean(data.emptySet));
-      setInsufficientLevel(Boolean(data.insufficientLevel));
-      setQi(0);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "오류");
-      setQuestions([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [level, setMode]);
 
-  useEffect(() => {
-    void load();
-  }, [load]);
+    const params = new URLSearchParams({
+      level,
+      limit: "12",
+    });
+    if (setMode) {
+      params.set("set", setMode.setIndex);
+      params.set("batchSize", setMode.batchSize);
+    }
+
+    (async () => {
+      try {
+        const res = await fetch(`/api/test?${params.toString()}`, {
+          signal: ac.signal,
+        });
+        const data = await readJsonResponse<{
+          questions?: QuizQuestion[];
+          needsStudy?: boolean;
+          emptySet?: boolean;
+          insufficientLevel?: boolean;
+          error?: string;
+        }>(res);
+        if (!res.ok)
+          throw new Error(data.error ?? "시험을 불러올 수 없습니다.");
+        if (ac.signal.aborted) return;
+        setQuestions(data.questions ?? []);
+        setNeedsStudy(Boolean(data.needsStudy));
+        setEmptySet(Boolean(data.emptySet));
+        setInsufficientLevel(Boolean(data.insufficientLevel));
+        setQi(0);
+      } catch (e) {
+        if (ac.signal.aborted || (e instanceof Error && e.name === "AbortError"))
+          return;
+        setError(e instanceof Error ? e.message : "오류");
+        setQuestions([]);
+      } finally {
+        if (!ac.signal.aborted) setLoading(false);
+      }
+    })();
+
+    return () => ac.abort();
+  }, [level, setMode]);
 
   const q = questions[qi];
   const done = questions.length > 0 && qi >= questions.length;
 
   const submitAnswer = useCallback(
-    async (answer: string) => {
+    async (answer: string, el: HTMLButtonElement | null) => {
       if (!q || picked !== null) return;
+      el?.blur();
       setPicked(answer);
       const ok = answer === q.correctAnswer;
       try {
@@ -137,6 +131,10 @@ export function TestPageClient() {
   );
 
   const nextQ = useCallback(() => {
+    if (typeof document !== "undefined") {
+      const a = document.activeElement;
+      if (a instanceof HTMLElement) a.blur();
+    }
     setPicked(null);
     setQi((i) => i + 1);
   }, []);
@@ -151,8 +149,6 @@ export function TestPageClient() {
   }, [picked, q?.id, nextQ]);
 
   const onPickLevel = (lv: string) => {
-    setLevel(lv);
-    setSetMode(null);
     router.replace(`/test?level=${encodeURIComponent(lv)}`, { scroll: false });
   };
 
@@ -201,10 +197,10 @@ export function TestPageClient() {
         {isSetPractice ? (
           questions.length > 0 ? (
             <>
-              세트 연습 · {level} (연습문제 {questions.length}개)
+              세트 통과 시험 · {level} ({questions.length}문제)
             </>
           ) : (
-            <>세트 연습 · {level}</>
+            <>세트 통과 시험 · {level}</>
           )
         ) : (
           <>
@@ -310,17 +306,21 @@ export function TestPageClient() {
             initial={reduceMotion ? false : "hidden"}
             animate="visible"
           >
-            {q.choices.map((c) => {
+            {q.choices.map((c, i) => {
               const isSel = picked === c;
               const isCorrect = c === q.correctAnswer;
               const show = picked !== null;
               return (
-                <motion.li key={c} variants={choiceItem} className="min-w-0">
+                <motion.li
+                  key={`${q.id}-${qi}-${i}`}
+                  variants={choiceItem}
+                  className="min-w-0"
+                >
                   <button
                     type="button"
                     disabled={picked !== null}
-                    onClick={() => void submitAnswer(c)}
-                    className={`flex w-full items-center justify-between gap-3 rounded-xl border px-4 py-4 text-left text-lg transition-colors duration-200 ${
+                    onClick={(e) => void submitAnswer(c, e.currentTarget)}
+                    className={`[-webkit-tap-highlight-color:transparent] flex w-full touch-manipulation items-center justify-between gap-3 rounded-xl border px-4 py-4 text-left text-lg transition-colors duration-200 ${
                       show && isCorrect
                         ? "border-emerald-600 bg-emerald-100/90 font-medium text-emerald-950 ring-2 ring-emerald-500/40"
                         : show && isSel && !isCorrect

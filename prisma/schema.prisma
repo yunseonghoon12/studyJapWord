@@ -31,3 +31,9 @@ model UserWord {
   seenInStudy  Boolean  @default(false)
   lastSeenAt   DateTime @default(now())
 }
+
+/** 출석 체크(로컬 날짜 문자열 YYYY-MM-DD). 단일 사용자 앱 기준 */
+model AttendanceDay {
+  day       String   @id
+  createdAt DateTime @default(now())
+}

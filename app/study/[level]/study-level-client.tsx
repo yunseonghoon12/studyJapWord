@@ -44,35 +44,37 @@ function toPoolRow(w: WordRow): WordQuizRow {
 }
 
 const EXAM_QUESTION_TARGET = 12;
-const EXAM_PASS_RATIO = 0.75;
 const WORDS_CACHE_TTL_MS = 1000 * 60 * 60 * 24;
 const WORDS_CACHE_VERSION = 1;
 
+/** StudyCard와 동일: `rounded-xl` + `border-zinc-800`, 배경 없음 */
 const bottomNavItem =
-  "rounded-full border border-pink-200/80 bg-pink-50/80 px-3 py-2 text-center text-sm font-medium text-zinc-700 shadow-sm backdrop-blur-md transition-colors duration-200 hover:border-pink-300 hover:bg-pink-100/80 hover:text-zinc-900 active:bg-pink-200/70";
+  "inline-flex shrink-0 items-center justify-center rounded-xl border border-zinc-800 bg-transparent px-2 py-1.5 text-center text-[13px] font-medium leading-snug text-zinc-800 transition-colors duration-200 [-webkit-tap-highlight-color:transparent] active:scale-[0.98] hover:border-pink-400/90 hover:bg-pink-50/55 hover:text-zinc-900 sm:px-2.5 sm:text-sm";
 
 function BottomNav({
-  testHref,
+  onStartTest,
   resultOnlyHome = false,
 }: {
-  testHref: string;
+  onStartTest: () => void;
   resultOnlyHome?: boolean;
 }) {
   return (
-    <nav className="mt-auto flex shrink-0 items-stretch justify-center gap-2 border-t border-zinc-200/60 bg-white/52 px-2 py-2 backdrop-blur-md sm:gap-4">
-      {!resultOnlyHome ? (
-        <Link href={testHref} className={bottomNavItem}>
-          테스트
+    <nav className="mt-auto flex w-full shrink-0 justify-center px-2 py-1.5 pt-2.5 pb-[max(0.375rem,env(safe-area-inset-bottom,0px))] sm:px-3">
+      <div className="flex max-w-full items-center justify-center gap-1.5 sm:gap-2">
+        {!resultOnlyHome ? (
+          <button type="button" onClick={onStartTest} className={bottomNavItem}>
+            テスト
+          </button>
+        ) : null}
+        <Link href="/" className={bottomNavItem}>
+          ホームへ
         </Link>
-      ) : null}
-      <Link href="/" className={bottomNavItem}>
-        홈으로 가기
-      </Link>
-      {!resultOnlyHome ? (
-        <Link href="/settings" className={bottomNavItem}>
-          설정
-        </Link>
-      ) : null}
+        {!resultOnlyHome ? (
+          <Link href="/settings" className={bottomNavItem}>
+            セッティング
+          </Link>
+        ) : null}
+      </div>
     </nav>
   );
 }
@@ -208,8 +210,6 @@ export function StudyLevelClient({ level }: { level: string }) {
     if (phase === "study" && current?.id) void markSeenOpen(current.id);
   }, [phase, current?.id, markSeenOpen]);
 
-  const setTestHref = `/test?level=${encodeURIComponent(level)}&set=${clearedBatches}&batchSize=${batchSize}`;
-
   const nextCard = () => {
     if (stepIndex + 1 >= batchWords.length) {
       startBatchExam();
@@ -255,9 +255,13 @@ export function StudyLevelClient({ level }: { level: string }) {
     setPhase("batch-exam");
   };
 
-  const submitExamChoice = (answer: string) => {
+  const submitExamChoice = (
+    answer: string,
+    el: HTMLButtonElement | null
+  ) => {
     const q = examQs[examIdx];
     if (!q || examPicked !== null) return;
+    el?.blur();
     setExamPicked(answer);
     void postStudy(q.wordId, answer !== q.correctAnswer);
   };
@@ -271,8 +275,7 @@ export function StudyLevelClient({ level }: { level: string }) {
 
     if (examIdx + 1 >= examQs.length) {
       const total = examQs.length;
-      const passNeeded = Math.ceil(total * EXAM_PASS_RATIO);
-      const pass = nextScore >= passNeeded;
+      const pass = nextScore === total;
       setExamCorrectRunning(nextScore);
       setExamResult({ pass, score: nextScore, total });
       setPhase("batch-result");
@@ -285,6 +288,10 @@ export function StudyLevelClient({ level }: { level: string }) {
     }
 
     setExamCorrectRunning(nextScore);
+    if (typeof document !== "undefined") {
+      const a = document.activeElement;
+      if (a instanceof HTMLElement) a.blur();
+    }
     setExamIdx((i) => i + 1);
     setExamPicked(null);
   }, [
@@ -309,11 +316,21 @@ export function StudyLevelClient({ level }: { level: string }) {
     setError(null);
   };
 
+  const leaveExamForStudy = () => {
+    setPhase("study");
+    setExamQs([]);
+    setExamIdx(0);
+    setExamPicked(null);
+    setExamCorrectRunning(0);
+    setExamResult(null);
+    setError(null);
+  };
+
   const navBtn =
-    "rounded-lg border border-zinc-200/75 bg-white/78 px-3 py-2 text-sm font-medium text-zinc-800 shadow-sm backdrop-blur-md disabled:cursor-not-allowed disabled:opacity-40 hover:bg-pink-50/65";
+    "rounded-lg border border-zinc-200/75 bg-white/78 px-4 py-2.5 text-[15px] font-medium text-zinc-800 shadow-sm backdrop-blur-md disabled:cursor-not-allowed disabled:opacity-40 hover:bg-pink-50/65";
 
   return (
-    <main className="mx-auto flex min-h-dvh max-w-lg flex-col px-2">
+    <main className="mx-auto flex min-h-dvh max-w-lg flex-col px-2 text-[15px]">
       {!loading &&
         !error &&
         phase === "study" &&
@@ -380,70 +397,89 @@ export function StudyLevelClient({ level }: { level: string }) {
         )}
 
         {!loading && !error && phase === "batch-exam" && examQs.length > 0 && (
-          <div className="flex min-h-0 flex-1 flex-col overflow-y-auto py-2">
+          <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
             {(() => {
               const q = examQs[examIdx]!;
               return (
                 <>
-                  <div className="mb-2 flex items-center justify-between text-xs text-zinc-500">
-                    <span className="rounded-full bg-amber-100 px-2 py-0.5 font-medium text-amber-900">
-                      세트 통과 · {quizTypeLabel(q.type)}
-                    </span>
-                    <span className="tabular-nums">
-                      {examIdx + 1}/{examQs.length}
-                    </span>
+                  <div className="shrink-0 px-1 pt-5">
+                    <div className="flex items-center justify-between text-xs text-zinc-500">
+                      <span className="rounded-full bg-amber-100 px-2 py-0.5 font-medium text-amber-900">
+                        세트 통과 · {quizTypeLabel(q.type)}
+                      </span>
+                      <span className="tabular-nums">
+                        {examIdx + 1}/{examQs.length}
+                      </span>
+                    </div>
                   </div>
-                  <p
-                    className={`text-center font-bold text-zinc-900 ${
-                      q.type === "example-blank"
-                        ? "text-lg leading-snug sm:text-xl"
-                        : "text-4xl"
-                    }`}
-                  >
-                    {q.prompt}
-                  </p>
-                  <ul className="mt-4 flex flex-col gap-2">
-                    {q.choices.map((c) => {
-                      const show = examPicked !== null;
-                      const isCorrect = c === q.correctAnswer;
-                      const isSel = examPicked === c;
-                      return (
-                        <li key={c}>
-                          <button
-                            type="button"
-                            disabled={examPicked !== null}
-                            onClick={() => submitExamChoice(c)}
-                            className={`flex w-full items-center justify-between gap-3 rounded-xl border px-3 py-3 text-left text-base transition ${
-                              show && isCorrect
-                                ? "border-emerald-600 bg-emerald-100/90 font-medium text-emerald-950 ring-2 ring-emerald-500/40"
-                                : show && isSel && !isCorrect
-                                  ? "border-red-500 bg-red-100/90 font-medium text-red-950 ring-2 ring-red-400/50"
-                                  : "border-zinc-200/75 bg-white/80 backdrop-blur-sm hover:bg-pink-50/50"
-                            }`}
-                          >
-                            <span className="min-w-0 flex-1 leading-snug">
-                              {c}
-                            </span>
-                            {show && isCorrect ? (
-                              <span className="shrink-0 text-xs font-semibold tracking-wide text-red-600 sm:text-sm">
-                                정답
-                              </span>
-                            ) : null}
-                            {show && isSel && !isCorrect ? (
-                              <span className="shrink-0 text-xs font-semibold text-red-700 sm:text-sm">
-                                오답
-                              </span>
-                            ) : null}
-                          </button>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                  {examPicked !== null && (
-                    <p className="mt-4 text-center text-sm text-zinc-500">
-                      잠시 후 다음 문제로 넘어갑니다…
+                  <div className="mx-auto flex w-full min-h-0 flex-1 flex-col justify-center px-1 pb-4">
+                    <p
+                      className={`text-center font-bold leading-snug text-zinc-900 ${
+                        q.type === "example-blank"
+                          ? "text-2xl sm:text-3xl"
+                          : "text-5xl sm:text-6xl"
+                      }`}
+                    >
+                      {q.prompt}
                     </p>
-                  )}
+                    <ul className="mt-6 flex flex-col gap-2">
+                      {q.choices.map((c, i) => {
+                        const show = examPicked !== null;
+                        const isCorrect = c === q.correctAnswer;
+                        const isSel = examPicked === c;
+                        return (
+                          <li key={`${q.id}-${examIdx}-${i}`}>
+                            <button
+                              type="button"
+                              disabled={examPicked !== null}
+                              onClick={(e) => submitExamChoice(c, e.currentTarget)}
+                              className={`[-webkit-tap-highlight-color:transparent] flex w-full touch-manipulation items-center justify-between gap-3 rounded-xl border px-3 py-3 text-left text-base transition ${
+                                show && isCorrect
+                                  ? "border-emerald-600 bg-emerald-100/90 font-medium text-emerald-950 ring-2 ring-emerald-500/40"
+                                  : show && isSel && !isCorrect
+                                    ? "border-red-500 bg-red-100/90 font-medium text-red-950 ring-2 ring-red-400/50"
+                                    : "border-zinc-200/75 bg-white/80 backdrop-blur-sm hover:bg-pink-50/50"
+                              }`}
+                            >
+                              <span className="min-w-0 flex-1 leading-snug">
+                                {c}
+                              </span>
+                              {show && isCorrect ? (
+                                <span className="shrink-0 text-xs font-semibold tracking-wide text-red-600 sm:text-sm">
+                                  정답
+                                </span>
+                              ) : null}
+                              {show && isSel && !isCorrect ? (
+                                <span className="shrink-0 text-xs font-semibold text-red-700 sm:text-sm">
+                                  오답
+                                </span>
+                              ) : null}
+                            </button>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                    <p className="mt-5 text-center text-sm leading-relaxed text-zinc-600">
+                      모든 문제를 맞혀야 세트 통과입니다. 통과하면 다음 세트가
+                      열립니다.
+                    </p>
+                    {examPicked !== null ? (
+                      <p className="mt-3 text-center text-sm text-zinc-500">
+                        잠시 후 다음 문제로 넘어갑니다…
+                      </p>
+                    ) : null}
+                  </div>
+                  <div
+                    className="shrink-0 px-1 pb-[max(0.5rem,env(safe-area-inset-bottom,0px))] pt-2"
+                  >
+                    <button
+                      type="button"
+                      onClick={leaveExamForStudy}
+                      className="w-full rounded-xl border border-zinc-200/80 bg-white/78 py-3 text-[15px] font-medium text-zinc-800 shadow-sm backdrop-blur-md transition hover:border-pink-200/80 hover:bg-pink-50/55"
+                    >
+                      단어공부 더 하러가기
+                    </button>
+                  </div>
                 </>
               );
             })()}
@@ -469,8 +505,7 @@ export function StudyLevelClient({ level }: { level: string }) {
                     세트 미통과 ({examResult.score}/{examResult.total})
                   </p>
                   <p className="mt-2 text-sm text-zinc-600">
-                    {Math.ceil(examResult.total * EXAM_PASS_RATIO)}개 이상 맞아야
-                    통과입니다.
+                    모든 문제를 맞혀야 세트 통과입니다.
                   </p>
                 </>
               )}
@@ -486,8 +521,8 @@ export function StudyLevelClient({ level }: { level: string }) {
         )}
       </div>
 
-      {!loading && !error && (
-        <BottomNav testHref={setTestHref} resultOnlyHome={phase === "batch-result"} />
+      {!loading && !error && phase !== "batch-exam" && (
+        <BottomNav onStartTest={startBatchExam} resultOnlyHome={phase === "batch-result"} />
       )}
     </main>
   );

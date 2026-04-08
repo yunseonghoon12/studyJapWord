@@ -8,7 +8,11 @@ const DURATION = 0.35;
 /** ease-out — no bounce */
 const EASE = [0, 0, 0.2, 1] as const;
 
-type Props = { linkClassName: string };
+type Props = {
+  linkClassName: string;
+  /** 넣으면 4번째로 같은 stagger 애니메이션 적용 (메인 3개 아래 중앙) */
+  attendanceLinkClassName?: string;
+};
 
 const LINKS = [
   { href: "/study", label: "단어 공부" },
@@ -16,7 +20,10 @@ const LINKS = [
   { href: "/vocabulary", label: "단어장" },
 ] as const;
 
-export function AnimatedHomeMainLinks({ linkClassName }: Props) {
+export function AnimatedHomeMainLinks({
+  linkClassName,
+  attendanceLinkClassName,
+}: Props) {
   const reduce = useReducedMotion();
 
   const container = {
@@ -43,18 +50,28 @@ export function AnimatedHomeMainLinks({ linkClassName }: Props) {
 
   return (
     <motion.nav
-      className="flex flex-col gap-3 sm:flex-row"
+      className="grid grid-cols-1 gap-3 sm:grid-cols-3"
       variants={container}
       initial={reduce ? false : "hidden"}
       animate="visible"
     >
       {LINKS.map(({ href, label }) => (
-        <motion.div key={href} variants={item} className="w-full sm:flex-1">
+        <motion.div key={href} variants={item} className="min-w-0 sm:col-span-1">
           <Link href={href} className={`block ${linkClassName}`}>
             {label}
           </Link>
         </motion.div>
       ))}
+      {attendanceLinkClassName ? (
+        <motion.div
+          variants={item}
+          className="flex justify-center sm:col-span-3"
+        >
+          <Link href="/attendance" className={attendanceLinkClassName}>
+            출석체크 🌸
+          </Link>
+        </motion.div>
+      ) : null}
     </motion.nav>
   );
 }

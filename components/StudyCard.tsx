@@ -118,7 +118,7 @@ export function StudyCard({
             {example}
           </p>
         </LabeledBlock>
-        <LabeledBlock label="예문 읽는 법">
+        <LabeledBlock label="예문 (히라가나)">
           <p className="text-lg font-normal leading-loose text-zinc-800 sm:text-xl">
             {exRead}
           </p>
