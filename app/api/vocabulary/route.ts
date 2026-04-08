@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { stableRandomRank } from "@/lib/stable-random-order";
 
 const CACHE_HEADERS = {
   "Cache-Control": "public, s-maxage=15, stale-while-revalidate=90",
@@ -19,8 +20,9 @@ function sortRows(rows: Row[]): Row[] {
   return [...rows].sort((a, b) => {
     const lv = levelRank(a.level) - levelRank(b.level);
     if (lv !== 0) return lv;
-    const rd = a.reading.localeCompare(b.reading, "ja");
-    if (rd !== 0) return rd;
+    const ra = stableRandomRank(a.id);
+    const rb = stableRandomRank(b.id);
+    if (ra !== rb) return ra - rb;
     return a.id.localeCompare(b.id);
   });
 }

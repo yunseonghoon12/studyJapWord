@@ -49,20 +49,30 @@ const WORDS_CACHE_TTL_MS = 1000 * 60 * 60 * 24;
 const WORDS_CACHE_VERSION = 1;
 
 const bottomNavItem =
-  "rounded-lg border border-zinc-200/75 bg-white/78 px-3 py-2 text-center text-sm font-medium text-zinc-800 shadow-sm backdrop-blur-md transition-colors duration-200 hover:border-zinc-950 hover:bg-zinc-900 hover:text-white active:bg-zinc-950";
+  "rounded-lg border border-zinc-200/75 bg-white/78 px-4 py-3 text-center text-base font-semibold text-zinc-800 shadow-sm backdrop-blur-md transition-colors duration-200 hover:border-zinc-950 hover:bg-zinc-900 hover:text-white active:bg-zinc-950";
 
-function BottomNav({ testHref }: { testHref: string }) {
+function BottomNav({
+  testHref,
+  resultOnlyHome = false,
+}: {
+  testHref: string;
+  resultOnlyHome?: boolean;
+}) {
   return (
     <nav className="mt-auto flex shrink-0 items-stretch justify-center gap-2 border-t border-zinc-200/60 bg-white/52 px-2 py-2 backdrop-blur-md sm:gap-4">
-      <Link href={testHref} className={bottomNavItem}>
-        테스트
-      </Link>
+      {!resultOnlyHome ? (
+        <Link href={testHref} className={bottomNavItem}>
+          테스트
+        </Link>
+      ) : null}
       <Link href="/" className={bottomNavItem}>
-        홈
+        홈으로 가기
       </Link>
-      <Link href="/settings" className={bottomNavItem}>
-        설정
-      </Link>
+      {!resultOnlyHome ? (
+        <Link href="/settings" className={bottomNavItem}>
+          설정
+        </Link>
+      ) : null}
     </nav>
   );
 }
@@ -443,6 +453,12 @@ export function StudyLevelClient({ level }: { level: string }) {
         {!loading && !error && phase === "batch-result" && examResult && (
           <div className="flex flex-1 flex-col justify-center px-1 py-4">
             <div className="rounded-xl border border-zinc-200/70 bg-white/75 p-4 shadow-sm backdrop-blur-md">
+              <Link
+                href={`/study/${encodeURIComponent(level)}`}
+                className="mb-3 inline-block rounded-lg border border-zinc-200/80 bg-white/85 px-3 py-2 text-sm font-medium text-zinc-700 transition hover:border-pink-200/80 hover:bg-pink-50/55"
+              >
+                단어 공부하러 가기
+              </Link>
               {examResult.pass ? (
                 <p className="text-lg font-semibold text-emerald-800">
                   세트 통과 ({examResult.score}/{examResult.total})
@@ -470,7 +486,9 @@ export function StudyLevelClient({ level }: { level: string }) {
         )}
       </div>
 
-      {!loading && !error && <BottomNav testHref={setTestHref} />}
+      {!loading && !error && (
+        <BottomNav testHref={setTestHref} resultOnlyHome={phase === "batch-result"} />
+      )}
     </main>
   );
 }

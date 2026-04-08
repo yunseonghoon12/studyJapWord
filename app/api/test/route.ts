@@ -4,6 +4,7 @@ import { buildQuizQuestionForWord, type WordQuizRow } from "@/lib/quiz-question"
 import type { QuizQuestion } from "@/lib/quiz-types";
 import { QUIZ_TYPES } from "@/lib/quiz-types";
 import { prisma } from "@/lib/prisma";
+import { sortByStableRandom } from "@/lib/stable-random-order";
 import { shuffle } from "@/lib/shuffle";
 
 const NO_STORE_HEADERS = {
@@ -59,10 +60,11 @@ export async function GET(request: Request) {
   const allInLevel = await prisma.word.findMany({
     where: { level },
     include: { userWord: true },
-    orderBy: [{ reading: "asc" }, { id: "asc" }],
+    orderBy: [{ id: "asc" }],
   });
+  const orderedLevel = sortByStableRandom(allInLevel, (w) => w.id);
 
-  const poolLevelEligible = filterEligible(allInLevel).map(toQuizRow);
+  const poolLevelEligible = filterEligible(orderedLevel).map(toQuizRow);
 
   if (poolLevelEligible.length < 4) {
     return NextResponse.json(
@@ -79,7 +81,7 @@ export async function GET(request: Request) {
   }
 
   if (setMode) {
-    const slice = allInLevel.slice(setIdx * batchSize, setIdx * batchSize + batchSize);
+    const slice = orderedLevel.slice(setIdx * batchSize, setIdx * batchSize + batchSize);
     const sourceEligible = filterEligible(slice).map(toQuizRow);
 
     if (sourceEligible.length === 0) {
@@ -120,7 +122,7 @@ export async function GET(request: Request) {
     );
   }
 
-  const eligible = filterEligible(allInLevel).filter(
+  const eligible = filterEligible(orderedLevel).filter(
     (w) => w.userWord?.seenInStudy === true
   );
   const poolRows = eligible.map(toQuizRow);

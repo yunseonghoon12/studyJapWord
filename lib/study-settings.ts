@@ -17,6 +17,7 @@ export function getBatchSize(): number {
 }
 
 export function setBatchSize(n: number): void {
+  if (typeof window === "undefined") return;
   localStorage.setItem(
     BATCH_KEY,
     String(
@@ -26,6 +27,11 @@ export function setBatchSize(n: number): void {
       )
     )
   );
+}
+
+export function resetBatchSize(): void {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(BATCH_KEY, String(BATCH_SIZE_DEFAULT));
 }
 
 export function getClearedBatchCount(level: string): number {
@@ -42,6 +48,7 @@ export function getClearedBatchCount(level: string): number {
 }
 
 export function setClearedBatchCount(level: string, cleared: number): void {
+  if (typeof window === "undefined") return;
   try {
     const raw = localStorage.getItem(PROGRESS_KEY);
     const o = raw ? (JSON.parse(raw) as Record<string, { cleared?: number }>) : {};
@@ -53,4 +60,9 @@ export function setClearedBatchCount(level: string, cleared: number): void {
       JSON.stringify({ [level]: { cleared: Math.max(0, Math.floor(cleared)) } })
     );
   }
+}
+
+export function clearClearedBatchCounts(): void {
+  if (typeof window === "undefined") return;
+  localStorage.removeItem(PROGRESS_KEY);
 }

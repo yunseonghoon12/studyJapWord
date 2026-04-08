@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { sortByStableRandom } from "@/lib/stable-random-order";
 
 const CACHE_HEADERS = {
   "Cache-Control": "public, s-maxage=20, stale-while-revalidate=120",
@@ -18,10 +19,11 @@ export async function GET(request: Request) {
       NOT: { userWord: { is: { isExcluded: true } } },
     },
     include: { userWord: true },
-    orderBy: [{ reading: "asc" }, { id: "asc" }],
+    orderBy: [{ id: "asc" }],
   });
+  const orderedRows = sortByStableRandom(rows, (w) => w.id);
 
-  const words = rows.map((w) => {
+  const words = orderedRows.map((w) => {
     const kanjiRaw = w.kanji?.trim();
     const reading = (w.reading || "").trim();
     const meaning =
