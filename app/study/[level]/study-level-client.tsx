@@ -49,7 +49,7 @@ const WORDS_CACHE_TTL_MS = 1000 * 60 * 60 * 24;
 const WORDS_CACHE_VERSION = 1;
 
 const bottomNavItem =
-  "rounded-lg border border-zinc-200/75 bg-white/78 px-4 py-3 text-center text-base font-semibold text-zinc-800 shadow-sm backdrop-blur-md transition-colors duration-200 hover:border-zinc-950 hover:bg-zinc-900 hover:text-white active:bg-zinc-950";
+  "rounded-full border border-pink-200/80 bg-pink-50/80 px-3 py-2 text-center text-sm font-medium text-zinc-700 shadow-sm backdrop-blur-md transition-colors duration-200 hover:border-pink-300 hover:bg-pink-100/80 hover:text-zinc-900 active:bg-pink-200/70";
 
 function BottomNav({
   testHref,

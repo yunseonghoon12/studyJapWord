@@ -3,6 +3,8 @@ import { AnimatedStudyLevelList } from "@/components/animated-study-level-list";
 import { StudyIndexNav } from "./study-index-nav";
 import { prisma } from "@/lib/prisma";
 
+export const dynamic = "force-dynamic";
+
 const ALL_LEVELS = ["N5", "N4", "N3", "N2", "N1"] as const;
 
 export default async function StudyIndexPage() {

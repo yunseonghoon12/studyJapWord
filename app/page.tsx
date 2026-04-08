@@ -2,6 +2,8 @@ import Link from "next/link";
 import { AnimatedHomeMainLinks } from "@/components/animated-home-main-links";
 import { prisma } from "@/lib/prisma";
 
+export const dynamic = "force-dynamic";
+
 /** 기본은 아주 연한 핑크, hover 시 진한 핑크 */
 const HOME_MAIN_LINK =
   "flex h-14 items-center justify-center rounded-xl border border-pink-100/80 bg-pink-50/75 px-4 text-center text-lg font-medium text-zinc-800 shadow-sm backdrop-blur-sm transition hover:border-pink-900 hover:bg-pink-900 hover:text-white sm:flex-1";
@@ -48,6 +50,13 @@ export default async function HomePage() {
       )}
 
       <AnimatedHomeMainLinks linkClassName={HOME_MAIN_LINK} />
+
+      <Link
+        href="/attendance"
+        className="mx-auto inline-flex items-center justify-center rounded-full border border-pink-200/80 bg-pink-50/80 px-5 py-2 text-sm font-semibold text-pink-700 shadow-sm transition hover:border-pink-300 hover:bg-pink-100/80"
+      >
+        출석체크 🌸
+      </Link>
 
       <Link
         href="/settings"
