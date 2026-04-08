@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { StudyCard } from "@/components/StudyCard";
+import { readClientCache, writeClientCache } from "@/lib/client-cache";
 import {
   buildQuizQuestionForWord,
   type WordQuizRow,
@@ -44,6 +45,8 @@ function toPoolRow(w: WordRow): WordQuizRow {
 
 const EXAM_QUESTION_TARGET = 12;
 const EXAM_PASS_RATIO = 0.75;
+const WORDS_CACHE_TTL_MS = 1000 * 60 * 60 * 24;
+const WORDS_CACHE_VERSION = 1;
 
 const bottomNavItem =
   "rounded-lg border border-zinc-200/75 bg-white/78 px-3 py-2 text-center text-sm font-medium text-zinc-800 shadow-sm backdrop-blur-md transition-colors duration-200 hover:border-zinc-950 hover:bg-zinc-900 hover:text-white active:bg-zinc-950";
@@ -97,7 +100,19 @@ export function StudyLevelClient({ level }: { level: string }) {
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      setLoading(true);
+      const cacheKey = `words-level:${level}`;
+      const cached = readClientCache<{ words: WordRow[] }>(
+        cacheKey,
+        WORDS_CACHE_VERSION
+      );
+      if (cached?.words?.length) {
+        setWords(cached.words);
+        setStepIndex(0);
+        setPhase("study");
+        setLoading(false);
+      } else {
+        setLoading(true);
+      }
       setError(null);
       try {
         const res = await fetch(`/api/words?level=${encodeURIComponent(level)}`);
@@ -107,9 +122,16 @@ export function StudyLevelClient({ level }: { level: string }) {
         }>(res);
         if (!res.ok) throw new Error(data.error ?? "load failed");
         if (!cancelled) {
-          setWords(data.words ?? []);
+          const nextWords = data.words ?? [];
+          setWords(nextWords);
           setStepIndex(0);
           setPhase("study");
+          writeClientCache(
+            cacheKey,
+            { words: nextWords },
+            WORDS_CACHE_TTL_MS,
+            WORDS_CACHE_VERSION
+          );
         }
       } catch (e) {
         if (!cancelled) setError(e instanceof Error ? e.message : "오류");

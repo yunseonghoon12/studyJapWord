@@ -11,6 +11,7 @@ import {
 } from "react";
 import { FavoriteStarButton } from "@/components/FavoriteStarButton";
 import { StudyCard } from "@/components/StudyCard";
+import { readClientCache, writeClientCache } from "@/lib/client-cache";
 import { getFavoriteWordIds } from "@/lib/favorites";
 import { readJsonResponse } from "@/lib/read-json-response";
 
@@ -34,6 +35,8 @@ type StudyLevelFilter = (typeof JLPT_LEVELS)[number];
 
 const JLPT_LEVELS = ["N5", "N4", "N3", "N2", "N1"] as const;
 const PAGE_SIZE = 20;
+const VOCAB_CACHE_TTL_MS = 1000 * 60 * 30;
+const VOCAB_CACHE_VERSION = 1;
 
 const TAB_STYLES = {
   active: "border-zinc-900 bg-white/90 text-zinc-900 shadow-sm",
@@ -53,9 +56,23 @@ export function VocabularyClient() {
 
   const load = useCallback(async (options?: { silent?: boolean }) => {
     const silent = options?.silent === true;
-    if (!silent) setLoading(true);
+    const fav = getFavoriteWordIds();
+    const favKey = [...fav].sort().join(",");
+    const cacheKey = `vocabulary:${favKey}`;
+    if (!silent) {
+      const cached = readClientCache<{
+        fromStudy: WordRow[];
+        fromFavorites: WordRow[];
+      }>(cacheKey, VOCAB_CACHE_VERSION);
+      if (cached) {
+        setFromStudy(cached.fromStudy ?? []);
+        setFromFavorites(cached.fromFavorites ?? []);
+        setLoading(false);
+      } else {
+        setLoading(true);
+      }
+    }
     try {
-      const fav = getFavoriteWordIds();
       const q =
         fav.length > 0
           ? `?favorites=${encodeURIComponent(fav.join(","))}`
@@ -67,6 +84,12 @@ export function VocabularyClient() {
       }>(res);
       const nextStudy = data.fromStudy ?? [];
       const nextFav = data.fromFavorites ?? [];
+      writeClientCache(
+        cacheKey,
+        { fromStudy: nextStudy, fromFavorites: nextFav },
+        VOCAB_CACHE_TTL_MS,
+        VOCAB_CACHE_VERSION
+      );
       const apply = () => {
         setFromStudy(nextStudy);
         setFromFavorites(nextFav);

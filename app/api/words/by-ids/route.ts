@@ -2,6 +2,10 @@ import { NextResponse } from "next/server";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 
+const CACHE_HEADERS = {
+  "Cache-Control": "public, s-maxage=20, stale-while-revalidate=120",
+};
+
 type Row = Prisma.WordGetPayload<{ include: { userWord: true } }>;
 
 function mapWord(w: Row) {
@@ -56,5 +60,5 @@ export async function GET(request: Request) {
     .filter((w): w is Row => w != null);
   const words = ordered.map(mapWord);
 
-  return NextResponse.json({ words });
+  return NextResponse.json({ words }, { headers: CACHE_HEADERS });
 }

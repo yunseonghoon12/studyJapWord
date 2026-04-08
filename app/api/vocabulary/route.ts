@@ -2,6 +2,10 @@ import { NextResponse } from "next/server";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 
+const CACHE_HEADERS = {
+  "Cache-Control": "public, s-maxage=15, stale-while-revalidate=90",
+};
+
 type Row = Prisma.WordGetPayload<{ include: { userWord: true } }>;
 
 const JLPT_ORDER = ["N5", "N4", "N3", "N2", "N1"] as const;
@@ -73,5 +77,8 @@ export async function GET(request: Request) {
   const fromStudy = sortRows(seenRows).map(mapWord);
   const fromFavorites = sortRows(favRows).map(mapWord);
 
-  return NextResponse.json({ fromStudy, fromFavorites });
+  return NextResponse.json(
+    { fromStudy, fromFavorites },
+    { headers: CACHE_HEADERS }
+  );
 }

@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
+const CACHE_HEADERS = {
+  "Cache-Control": "public, s-maxage=20, stale-while-revalidate=120",
+};
+
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const level = searchParams.get("level");
@@ -42,5 +46,5 @@ export async function GET(request: Request) {
     };
   });
 
-  return NextResponse.json({ words });
+  return NextResponse.json({ words }, { headers: CACHE_HEADERS });
 }

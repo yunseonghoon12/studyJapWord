@@ -4,10 +4,11 @@ import { buildQuizQuestionForWord, type WordQuizRow } from "@/lib/quiz-question"
 import type { QuizQuestion } from "@/lib/quiz-types";
 import { QUIZ_TYPES } from "@/lib/quiz-types";
 import { prisma } from "@/lib/prisma";
-import type { Prisma } from "@prisma/client";
 import { shuffle } from "@/lib/shuffle";
 
-type WordWithUser = Prisma.WordGetPayload<{ include: { userWord: true } }>;
+const NO_STORE_HEADERS = {
+  "Cache-Control": "no-store",
+};
 
 function toQuizRow(w: {
   id: string;
@@ -43,7 +44,7 @@ export async function GET(request: Request) {
   if (!level) {
     return NextResponse.json(
       { error: "level is required (N5–N1)", questions: [] as QuizQuestion[] },
-      { status: 400 }
+      { status: 400, headers: NO_STORE_HEADERS }
     );
   }
 
@@ -64,14 +65,17 @@ export async function GET(request: Request) {
   const poolLevelEligible = filterEligible(allInLevel).map(toQuizRow);
 
   if (poolLevelEligible.length < 4) {
-    return NextResponse.json({
-      questions: [] as QuizQuestion[],
-      totalEligible: poolLevelEligible.length,
-      needsStudy: setMode ? false : true,
-      insufficientLevel: true,
-      mode: setMode ? "set" : "main",
-      level,
-    });
+    return NextResponse.json(
+      {
+        questions: [] as QuizQuestion[],
+        totalEligible: poolLevelEligible.length,
+        needsStudy: setMode ? false : true,
+        insufficientLevel: true,
+        mode: setMode ? "set" : "main",
+        level,
+      },
+      { headers: NO_STORE_HEADERS }
+    );
   }
 
   if (setMode) {
@@ -79,14 +83,17 @@ export async function GET(request: Request) {
     const sourceEligible = filterEligible(slice).map(toQuizRow);
 
     if (sourceEligible.length === 0) {
-      return NextResponse.json({
-        questions: [] as QuizQuestion[],
-        totalEligible: 0,
-        needsStudy: false,
-        emptySet: true,
-        mode: "set" as const,
-        level,
-      });
+      return NextResponse.json(
+        {
+          questions: [] as QuizQuestion[],
+          totalEligible: 0,
+          needsStudy: false,
+          emptySet: true,
+          mode: "set" as const,
+          level,
+        },
+        { headers: NO_STORE_HEADERS }
+      );
     }
 
     const typeCycle = shuffle([...QUIZ_TYPES]);
@@ -101,13 +108,16 @@ export async function GET(request: Request) {
       if (q) questions.push(q);
     }
     const out = shuffle(questions);
-    return NextResponse.json({
-      questions: out,
-      totalEligible: sourceEligible.length,
-      needsStudy: false,
-      mode: "set" as const,
-      level,
-    });
+    return NextResponse.json(
+      {
+        questions: out,
+        totalEligible: sourceEligible.length,
+        needsStudy: false,
+        mode: "set" as const,
+        level,
+      },
+      { headers: NO_STORE_HEADERS }
+    );
   }
 
   const eligible = filterEligible(allInLevel).filter(
@@ -116,13 +126,16 @@ export async function GET(request: Request) {
   const poolRows = eligible.map(toQuizRow);
 
   if (poolRows.length < 4) {
-    return NextResponse.json({
-      questions: [] as QuizQuestion[],
-      totalEligible: poolRows.length,
-      needsStudy: true,
-      mode: "main" as const,
-      level,
-    });
+    return NextResponse.json(
+      {
+        questions: [] as QuizQuestion[],
+        totalEligible: poolRows.length,
+        needsStudy: true,
+        mode: "main" as const,
+        level,
+      },
+      { headers: NO_STORE_HEADERS }
+    );
   }
 
   const prioritized = sortByWrongCountDesc(eligible);
@@ -142,11 +155,14 @@ export async function GET(request: Request) {
 
   const out = shuffle(questions);
 
-  return NextResponse.json({
-    questions: out,
-    totalEligible: poolRows.length,
-    needsStudy: false,
-    mode: "main" as const,
-    level,
-  });
+  return NextResponse.json(
+    {
+      questions: out,
+      totalEligible: poolRows.length,
+      needsStudy: false,
+      mode: "main" as const,
+      level,
+    },
+    { headers: NO_STORE_HEADERS }
+  );
 }
