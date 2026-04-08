@@ -68,7 +68,10 @@ function exampleJp(word: string, reading: string): string {
   return `今日は「${word}」を勉強しました。`;
 }
 
-function readingFromTokenizer(tokenizer: kuromoji.Tokenizer, surface: string): string {
+function readingFromTokenizer(
+  tokenizer: kuromoji.Tokenizer<kuromoji.IpadicFeatures>,
+  surface: string
+): string {
   const tokens = tokenizer.tokenize(surface);
   return tokens
     .map((t) => {
@@ -79,7 +82,7 @@ function readingFromTokenizer(tokenizer: kuromoji.Tokenizer, surface: string): s
     .join("");
 }
 
-async function buildTokenizer(): Promise<kuromoji.Tokenizer> {
+async function buildTokenizer(): Promise<kuromoji.Tokenizer<kuromoji.IpadicFeatures>> {
   const dicPath = path.join(ROOT, "node_modules", "kuromoji", "dict");
   return new Promise((resolve, reject) => {
     kuromoji.builder({ dicPath }).build((err, tokenizer) => {
