@@ -1,32 +1,22 @@
 /**
- * SQLite DB 파일 삭제 후 prisma db push로 빈 스키마 재생성.
+ * DB 내용을 비웁니다. (스키마는 유지)
  * 사용: npm run db:reset
  */
-import * as fs from "fs";
-import * as path from "path";
-import { execSync } from "child_process";
+import { PrismaClient } from "@prisma/client";
 
-const root = path.join(__dirname, "..");
-const prismaDir = path.join(root, "prisma");
+const prisma = new PrismaClient();
 
-const suffixes = ["", "-journal", "-wal", "-shm"];
-
-function removeSqliteDb(baseName: string) {
-  for (const s of suffixes) {
-    const p = path.join(prismaDir, `${baseName}${s}`);
-    try {
-      fs.unlinkSync(p);
-      console.log("삭제:", path.relative(root, p));
-    } catch (e: unknown) {
-      if (e instanceof Error && "code" in e && (e as NodeJS.ErrnoException).code === "ENOENT")
-        continue;
-      throw e;
-    }
-  }
+async function main() {
+  // FK 순서 보장: 자식(UserWord) -> 부모(Word)
+  const uw = await prisma.userWord.deleteMany();
+  const w = await prisma.word.deleteMany();
+  console.log(`DB 초기화 완료. UserWord ${uw.count}건, Word ${w.count}건 삭제됨.`);
 }
 
-removeSqliteDb("dev.db");
-
-execSync("npx prisma db push", { stdio: "inherit", cwd: root });
-
-console.log("\nDB 초기화 완료. Word / UserWord 테이블만 있고 행은 없습니다.");
+main()
+  .then(() => prisma.$disconnect())
+  .catch((e) => {
+    console.error(e);
+    void prisma.$disconnect();
+    process.exit(1);
+  });

@@ -6,6 +6,7 @@
 import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
+const url = process.env.DATABASE_URL || "";
 
 const LEGACY_COLUMNS = ["word", "A"] as const;
 
@@ -26,6 +27,10 @@ async function tableColumns(): Promise<Set<string>> {
 }
 
 async function main() {
+  if (!url.startsWith("file:")) {
+    console.log("SQLite 전용 스크립트입니다. 현재 DATABASE_URL에서는 건너뜁니다.");
+    return;
+  }
   for (const col of LEGACY_COLUMNS) {
     const names = await tableColumns();
     if (!names.has(col)) {
