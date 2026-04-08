@@ -49,7 +49,7 @@ const WORDS_CACHE_VERSION = 1;
 
 /** StudyCard와 동일: `rounded-xl` + `border-zinc-800`, 배경 없음 */
 const bottomNavItem =
-  "inline-flex shrink-0 items-center justify-center rounded-xl border border-zinc-800 bg-transparent px-2 py-1.5 text-center text-[13px] font-medium leading-snug text-zinc-800 transition-colors duration-200 [-webkit-tap-highlight-color:transparent] active:scale-[0.98] hover:border-pink-400/90 hover:bg-pink-50/55 hover:text-zinc-900 sm:px-2.5 sm:text-sm";
+  "inline-flex shrink-0 items-center justify-center rounded-xl border border-zinc-800 bg-transparent px-2 py-1.5 text-center text-base font-medium leading-snug text-zinc-800 transition-colors duration-200 [-webkit-tap-highlight-color:transparent] active:scale-[0.98] hover:border-pink-400/90 hover:bg-pink-50/55 hover:text-zinc-900 sm:px-2.5 sm:text-[17px]";
 
 function BottomNav({
   onStartTest,
