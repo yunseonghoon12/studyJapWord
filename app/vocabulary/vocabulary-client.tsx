@@ -11,61 +11,32 @@ import {
 } from "react";
 import { FavoriteStarButton } from "@/components/FavoriteStarButton";
 import { StudyCard } from "@/components/StudyCard";
-import { readClientCache, writeClientCache } from "@/lib/client-cache";
-import { getFavoriteWordIds } from "@/lib/favorites";
-import { readJsonResponse } from "@/lib/read-json-response";
+import { readClientCache } from "@/lib/client-cache";
+import type { VocabularyWordRow as WordRow } from "@/lib/vocabulary-cache";
+import {
+  VOCAB_CACHE_VERSION,
+  fetchVocabularyAndWriteCache,
+  getVocabularyCacheKey,
+} from "@/lib/vocabulary-cache";
 
-type WordRow = {
-  id: string;
-  level: string;
-  kanji: string | null;
-  reading: string;
-  meaning: string;
-  example: string;
-  exampleReading: string | null;
-  exampleMeaning: string | null;
-  wrongCount: number;
-  correctCount: number;
-};
-
-type TabId = "study" | "favorites";
-
-/** 연 세트 탭용 JLPT 레벨 필터 */
-type StudyLevelFilter = (typeof JLPT_LEVELS)[number];
-
-const JLPT_LEVELS = ["N5", "N4", "N3", "N2", "N1"] as const;
 const PAGE_SIZE = 20;
-const VOCAB_CACHE_TTL_MS = 1000 * 60 * 30;
-const VOCAB_CACHE_VERSION = 1;
-
-const TAB_STYLES = {
-  active: "border-zinc-900 bg-white/90 text-zinc-900 shadow-sm",
-  inactive:
-    "border-zinc-200/80 bg-white/50 text-zinc-600 hover:border-zinc-400 hover:bg-white/70",
-};
 
 export function VocabularyClient() {
   const router = useRouter();
-  const [fromStudy, setFromStudy] = useState<WordRow[]>([]);
   const [fromFavorites, setFromFavorites] = useState<WordRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<TabId>("study");
-  const [studyLevel, setStudyLevel] = useState<StudyLevelFilter>("N5");
   const [openId, setOpenId] = useState<string | null>(null);
   const [page, setPage] = useState(0);
 
   const load = useCallback(async (options?: { silent?: boolean }) => {
     const silent = options?.silent === true;
-    const fav = getFavoriteWordIds();
-    const favKey = [...fav].sort().join(",");
-    const cacheKey = `vocabulary:${favKey}`;
+    const cacheKey = getVocabularyCacheKey();
     if (!silent) {
       const cached = readClientCache<{
         fromStudy: WordRow[];
         fromFavorites: WordRow[];
       }>(cacheKey, VOCAB_CACHE_VERSION);
       if (cached) {
-        setFromStudy(cached.fromStudy ?? []);
         setFromFavorites(cached.fromFavorites ?? []);
         setLoading(false);
       } else {
@@ -73,25 +44,8 @@ export function VocabularyClient() {
       }
     }
     try {
-      const q =
-        fav.length > 0
-          ? `?favorites=${encodeURIComponent(fav.join(","))}`
-          : "";
-      const res = await fetch(`/api/vocabulary${q}`);
-      const data = await readJsonResponse<{
-        fromStudy?: WordRow[];
-        fromFavorites?: WordRow[];
-      }>(res);
-      const nextStudy = data.fromStudy ?? [];
-      const nextFav = data.fromFavorites ?? [];
-      writeClientCache(
-        cacheKey,
-        { fromStudy: nextStudy, fromFavorites: nextFav },
-        VOCAB_CACHE_TTL_MS,
-        VOCAB_CACHE_VERSION
-      );
+      const { fromFavorites: nextFav } = await fetchVocabularyAndWriteCache();
       const apply = () => {
-        setFromStudy(nextStudy);
         setFromFavorites(nextFav);
       };
       if (silent) {
@@ -101,7 +55,6 @@ export function VocabularyClient() {
       }
     } catch {
       if (!silent) {
-        setFromStudy([]);
         setFromFavorites([]);
       }
     } finally {
@@ -116,7 +69,8 @@ export function VocabularyClient() {
   useEffect(() => {
     const onChange = () => void load({ silent: true });
     window.addEventListener("wordStudy-favorites-changed", onChange);
-    return () => window.removeEventListener("wordStudy-favorites-changed", onChange);
+    return () =>
+      window.removeEventListener("wordStudy-favorites-changed", onChange);
   }, [load]);
 
   useEffect(() => {
@@ -125,18 +79,14 @@ export function VocabularyClient() {
     return () => window.removeEventListener("focus", onFocus);
   }, [load]);
 
-  const words = useMemo(() => {
-    const base = tab === "study" ? fromStudy : fromFavorites;
-    if (tab !== "study") return base;
-    return base.filter((w) => w.level === studyLevel);
-  }, [tab, fromStudy, fromFavorites, studyLevel]);
+  const words = fromFavorites;
 
   const totalPages =
     words.length === 0 ? 1 : Math.ceil(words.length / PAGE_SIZE);
 
   useEffect(() => {
     setPage(0);
-  }, [tab, studyLevel]);
+  }, [words.length]);
 
   useEffect(() => {
     setPage((p) => Math.min(p, Math.max(0, totalPages - 1)));
@@ -148,12 +98,6 @@ export function VocabularyClient() {
     return words.slice(start, start + PAGE_SIZE);
   }, [words, currentPage]);
 
-  const emptyStudy = !loading && tab === "study" && fromStudy.length === 0;
-  const emptyStudyFilter =
-    !loading &&
-    tab === "study" &&
-    fromStudy.length > 0 &&
-    words.length === 0;
   const emptyFav = !loading && fromFavorites.length === 0;
 
   return (
@@ -167,100 +111,14 @@ export function VocabularyClient() {
       </button>
       <h1 className="mt-4 text-2xl font-semibold text-zinc-900">단어장</h1>
       <p className="mt-1 text-sm text-zinc-600">
-        공부에서 연 단어와 즐겨찾기를 탭으로 나눠 볼 수 있습니다.
+        즐겨찾기한 단어를 모아 볼 수 있습니다.
       </p>
-
-      <div
-        className="mt-5 flex rounded-xl border border-zinc-800/50 bg-white/45 p-1 backdrop-blur-sm"
-        role="tablist"
-        aria-label="단어장 구분"
-      >
-        <button
-          type="button"
-          role="tab"
-          id="tab-study"
-          aria-selected={tab === "study"}
-          onClick={() => {
-            setTab("study");
-            setOpenId(null);
-          }}
-          className={`flex-1 rounded-lg border px-2 py-2.5 text-center text-sm font-medium transition ${tab === "study" ? TAB_STYLES.active : TAB_STYLES.inactive}`}
-        >
-          공부 단어
-          {!loading ? (
-            <span className="mt-0.5 block text-xs font-normal tabular-nums opacity-80">
-              {fromStudy.length}개
-            </span>
-          ) : null}
-        </button>
-        <button
-          type="button"
-          role="tab"
-          id="tab-favorites"
-          aria-selected={tab === "favorites"}
-          onClick={() => {
-            setTab("favorites");
-            setOpenId(null);
-          }}
-          className={`flex-1 rounded-lg border px-2 py-2.5 text-center text-sm font-medium transition ${tab === "favorites" ? TAB_STYLES.active : TAB_STYLES.inactive}`}
-        >
-          즐겨찾기
-          {!loading ? (
-            <span className="mt-0.5 block text-xs font-normal tabular-nums opacity-80">
-              {fromFavorites.length}개
-            </span>
-          ) : null}
-        </button>
-      </div>
-
-      {tab === "study" && (
-        <div className="mt-4">
-          <p className="text-xs font-medium tracking-wide text-zinc-500">
-            난이도
-          </p>
-          <div className="mt-2 flex flex-wrap gap-2">
-            {JLPT_LEVELS.map((lv) => (
-              <button
-                key={lv}
-                type="button"
-                onClick={() => {
-                  setStudyLevel(lv);
-                  setOpenId(null);
-                }}
-                className={`rounded-full px-3 py-1.5 text-sm font-medium transition ${
-                  studyLevel === lv
-                    ? "bg-zinc-900 text-white"
-                    : "border border-zinc-200/80 bg-white/70 text-zinc-800 backdrop-blur-sm hover:bg-pink-50/55"
-                }`}
-              >
-                {lv}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
 
       {loading && (
         <p className="mt-10 text-center text-zinc-500">불러오는 중…</p>
       )}
 
-      {!loading && emptyStudy && (
-        <p className="mt-10 rounded-xl border border-zinc-800 bg-zinc-50/60 px-4 py-6 text-center text-sm leading-relaxed text-zinc-600 backdrop-blur-sm">
-          아직 공부에서 연 단어가 없습니다.
-          <br />
-          단어 공부에서 세트를 열어 학습해 보세요.
-        </p>
-      )}
-
-      {!loading && emptyStudyFilter && (
-        <p className="mt-10 rounded-xl border border-zinc-800 bg-zinc-50/60 px-4 py-6 text-center text-sm leading-relaxed text-zinc-600 backdrop-blur-sm">
-          {studyLevel} 레벨에 해당하는 단어가 없습니다.
-          <br />
-          다른 난이도를 선택하거나 단어 공부에서 해당 레벨을 열어 보세요.
-        </p>
-      )}
-
-      {!loading && tab === "favorites" && emptyFav && (
+      {!loading && emptyFav && (
         <p className="mt-10 rounded-xl border border-zinc-800 bg-zinc-50/60 px-4 py-6 text-center text-sm leading-relaxed text-zinc-600 backdrop-blur-sm">
           즐겨찾기한 단어가 없습니다.
           <br />
@@ -297,53 +155,53 @@ export function VocabularyClient() {
             </button>
           </div>
           <ul className="mt-4 flex flex-col gap-3 pb-8">
-          {pagedWords.map((w) => {
-            const open = openId === w.id;
-            return (
-              <li
-                key={w.id}
-                className="rounded-xl border border-zinc-800 bg-white/80 backdrop-blur-md"
-              >
-                <div className="flex items-center gap-2 px-2 py-2">
-                  <button
-                    type="button"
-                    onClick={() => setOpenId(open ? null : w.id)}
-                    className="min-w-0 flex-1 rounded-lg px-2 py-2 text-left transition hover:bg-pink-50/45"
-                  >
-                    <div className="flex items-baseline gap-2">
-                      <span className="text-xl font-bold text-zinc-900">
-                        {w.kanji?.trim() || w.reading}
-                      </span>
-                      {w.kanji?.trim() ? (
-                        <span className="text-sm text-zinc-600">{w.reading}</span>
-                      ) : null}
-                    </div>
-                    <p className="mt-0.5 truncate text-sm text-zinc-700">
-                      {w.meaning}
-                    </p>
-                  </button>
-                  <FavoriteStarButton wordId={w.id} />
-                </div>
-                {open && (
-                  <div className="border-t border-zinc-800 px-1 pb-2 pt-2">
-                    <StudyCard
-                      data={{
-                        kanji: w.kanji,
-                        reading: w.reading,
-                        meaning: w.meaning,
-                        example: w.example,
-                        exampleReading: w.exampleReading,
-                        exampleMeaning: w.exampleMeaning,
-                        wrongCount: w.wrongCount,
-                        correctCount: w.correctCount,
-                      }}
-                    />
+            {pagedWords.map((w) => {
+              const open = openId === w.id;
+              return (
+                <li
+                  key={w.id}
+                  className="rounded-xl border border-zinc-800 bg-white/80 backdrop-blur-md"
+                >
+                  <div className="flex items-center gap-2 px-2 py-2">
+                    <button
+                      type="button"
+                      onClick={() => setOpenId(open ? null : w.id)}
+                      className="min-w-0 flex-1 rounded-lg px-2 py-2 text-left transition hover:bg-pink-50/45"
+                    >
+                      <div className="flex items-baseline gap-2">
+                        <span className="text-xl font-bold text-zinc-900">
+                          {w.kanji?.trim() || w.reading}
+                        </span>
+                        {w.kanji?.trim() ? (
+                          <span className="text-sm text-zinc-600">{w.reading}</span>
+                        ) : null}
+                      </div>
+                      <p className="mt-0.5 truncate text-sm text-zinc-700">
+                        {w.meaning}
+                      </p>
+                    </button>
+                    <FavoriteStarButton wordId={w.id} />
                   </div>
-                )}
-              </li>
-            );
-          })}
-        </ul>
+                  {open && (
+                    <div className="border-t border-zinc-800 px-1 pb-2 pt-2">
+                      <StudyCard
+                        data={{
+                          kanji: w.kanji,
+                          reading: w.reading,
+                          meaning: w.meaning,
+                          example: w.example,
+                          exampleReading: w.exampleReading,
+                          exampleMeaning: w.exampleMeaning,
+                          wrongCount: w.wrongCount,
+                          correctCount: w.correctCount,
+                        }}
+                      />
+                    </div>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
         </>
       ) : null}
 

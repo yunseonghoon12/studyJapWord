@@ -36,7 +36,7 @@ export default async function HomePage() {
           일본어 단어
         </h1>
         <p className="mt-2 text-lg text-zinc-600">
-          단어를 익히고 시험으로 복습하세요.
+          단어를 익히고 시험으로 복습하세율.
         </p>
       </div>
 
@@ -45,12 +45,7 @@ export default async function HomePage() {
           아직 시험에 사용할 단어가 없습니다.「단어 공부」에서 한자 학습을
           시작하면 메인 시험에서 랜덤 문제를 풀 수 있습니다.
         </p>
-      ) : (
-        <p className="text-sm text-zinc-500">
-          지금까지 학습한 단어{" "}
-          <span className="font-semibold text-zinc-800">{openedCount}</span>개
-        </p>
-      )}
+      ) : null}
 
       <AnimatedHomeMainLinks
         linkClassName={HOME_MAIN_LINK}

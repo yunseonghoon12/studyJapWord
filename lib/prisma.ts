@@ -11,8 +11,9 @@ function createPrisma() {
   });
 }
 
-/** 프로덕션만 global 캐시. 개발에서는 스키마/prisma generate 후 서버 재시작이 필요합니다. */
-export const prisma =
-  process.env.NODE_ENV === "production"
-    ? (globalForPrisma.prisma ??= createPrisma())
-    : createPrisma();
+/** dev/hot-reload 포함 전 환경에서 singleton 재사용 */
+export const prisma = globalForPrisma.prisma ?? createPrisma();
+
+if (process.env.NODE_ENV !== "production") {
+  globalForPrisma.prisma = prisma;
+}

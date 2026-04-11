@@ -35,10 +35,16 @@ function LabeledBlock({
 export function StudyCard({
   data,
   favoriteWordId,
+  hideKanji = false,
+  hideReading = false,
+  hideMeaning = false,
 }: {
   data: StudyCardData;
   /** 있으면 카드 오른쪽 상단(정답률 행)에 즐겨찾기 버튼 표시 */
   favoriteWordId?: string;
+  hideKanji?: boolean;
+  hideReading?: boolean;
+  hideMeaning?: boolean;
 }) {
   const reading = data.reading?.trim() || "—";
   const meaning = data.meaning?.trim() || "—";
@@ -60,6 +66,8 @@ export function StudyCard({
   /** 카드 외곽만 짙은 선; 안쪽 구분은 연한 선 */
   const outer = "border-zinc-800";
   const inner = "border-zinc-700/55";
+  const maskClass =
+    "select-none text-transparent [filter:blur(14px)] [text-shadow:0_0_18px_rgba(39,39,42,0.98)]";
 
   return (
     <article
@@ -88,15 +96,27 @@ export function StudyCard({
       <div className="shrink-0 text-center">
         {headKanji ? (
           <>
-            <p className="text-[clamp(3.25rem,18vw,5.75rem)] font-bold leading-none tracking-wide text-zinc-900">
+            <p
+              className={`text-[clamp(3.25rem,18vw,5.75rem)] font-bold leading-none tracking-wide text-zinc-900 ${
+                hideKanji ? maskClass : ""
+              }`}
+            >
               {headKanji}
             </p>
-            <p className="mt-2 text-2xl font-medium leading-relaxed tracking-wide text-zinc-700 sm:text-3xl">
+            <p
+              className={`mt-2 text-2xl font-medium leading-relaxed tracking-wide text-zinc-700 sm:text-3xl ${
+                hideReading ? maskClass : ""
+              }`}
+            >
               {reading}
             </p>
           </>
         ) : (
-          <p className="text-[clamp(3.25rem,18vw,5.75rem)] font-bold leading-none tracking-wide text-zinc-900">
+          <p
+            className={`text-[clamp(3.25rem,18vw,5.75rem)] font-bold leading-none tracking-wide text-zinc-900 ${
+              hideReading ? maskClass : ""
+            }`}
+          >
             {headFallbackReading}
           </p>
         )}
@@ -104,7 +124,11 @@ export function StudyCard({
 
       <div className={`shrink-0 border-t ${inner} pt-3`}>
         <LabeledBlock label="뜻">
-          <p className="text-lg font-medium leading-relaxed text-zinc-800 sm:text-xl">
+          <p
+            className={`text-lg font-medium leading-relaxed text-zinc-800 sm:text-xl ${
+              hideMeaning ? maskClass : ""
+            }`}
+          >
             {meaning}
           </p>
         </LabeledBlock>

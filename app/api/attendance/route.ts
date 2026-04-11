@@ -12,8 +12,18 @@ function validDays(values: unknown): string[] | null {
   return [...new Set(out)];
 }
 
-/** 출석한 날짜 목록 (YYYY-MM-DD) */
-export async function GET() {
+/** 출석한 날짜 목록 (YYYY-MM-DD). `touch=YYYY-MM-DD`면 해당 날짜를 출석 처리한 뒤 목록을 반환합니다. */
+export async function GET(request: Request) {
+  const { searchParams } = new URL(request.url);
+  const touch = searchParams.get("touch");
+  if (touch && DAY_RE.test(touch)) {
+    await prisma.attendanceDay.upsert({
+      where: { day: touch },
+      create: { day: touch },
+      update: {},
+    });
+  }
+
   const rows = await prisma.attendanceDay.findMany({
     select: { day: true },
     orderBy: { day: "asc" },

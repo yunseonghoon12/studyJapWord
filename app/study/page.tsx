@@ -1,18 +1,37 @@
 import Link from "next/link";
 import { AnimatedStudyLevelList } from "@/components/animated-study-level-list";
+import { AnimatedStudyProgress } from "@/components/animated-study-progress";
 import { StudyIndexNav } from "./study-index-nav";
+import { JLPT_LEVELS } from "@/components/jlpt-level-styles";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
 
-const ALL_LEVELS = ["N5", "N4", "N3", "N2", "N1"] as const;
-
 export default async function StudyIndexPage() {
-  const counts = await prisma.word.groupBy({
-    by: ["level"],
-    _count: { id: true },
-  });
+  const [counts, openedRows] = await Promise.all([
+    prisma.word.groupBy({
+      by: ["level"],
+      _count: { id: true },
+    }),
+    prisma.userWord.findMany({
+      where: { seenInStudy: true },
+      select: { word: { select: { level: true } } },
+    }),
+  ]);
   const map = Object.fromEntries(counts.map((c) => [c.level, c._count.id]));
+
+  const openedMap = new Map<string, number>();
+  for (const row of openedRows) {
+    const lv = row.word.level;
+    openedMap.set(lv, (openedMap.get(lv) ?? 0) + 1);
+  }
+
+  const progressRows = JLPT_LEVELS.map((level) => {
+    const total = map[level] ?? 0;
+    const opened = openedMap.get(level) ?? 0;
+    const ratio = total > 0 ? Math.round((opened / total) * 100) : 0;
+    return { level, ratio, opened, total };
+  });
 
   return (
     <main className="mx-auto min-h-dvh max-w-lg px-4 py-8">
@@ -28,10 +47,13 @@ export default async function StudyIndexPage() {
         </Link>
       </div>
       <AnimatedStudyLevelList
-        rows={ALL_LEVELS.map((level) => ({
+        rows={JLPT_LEVELS.map((level) => ({
           level,
           count: map[level] ?? 0,
         }))}
+      />
+      <AnimatedStudyProgress
+        rows={progressRows.map((row) => ({ level: row.level, ratio: row.ratio }))}
       />
     </main>
   );

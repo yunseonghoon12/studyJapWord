@@ -3,11 +3,13 @@
 import { motion, useReducedMotion } from "framer-motion";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  JLPT_LEVELS as LEVELS,
+  jlptLevelToggleClass,
+} from "@/components/jlpt-level-styles";
 import { readJsonResponse } from "@/lib/read-json-response";
 import type { QuizQuestion } from "@/lib/quiz-types";
 import { quizTypeInstruction, quizTypeLabel } from "@/lib/quiz-types";
-
-const LEVELS = ["N5", "N4", "N3", "N2", "N1"] as const;
 
 const CHOICE_STAGGER = 0.065;
 const CHOICE_DURATION = 0.35;
@@ -221,11 +223,7 @@ export function TestPageClient() {
                 key={lv}
                 type="button"
                 onClick={() => onPickLevel(lv)}
-                className={`rounded-full px-3 py-1.5 text-sm font-medium transition ${
-                  level === lv
-                    ? "bg-zinc-900 text-white"
-                    : "border border-zinc-200/70 bg-white/75 text-zinc-800 backdrop-blur-sm hover:bg-pink-50/55"
-                }`}
+                className={jlptLevelToggleClass(lv, level === lv)}
               >
                 {lv}
               </button>

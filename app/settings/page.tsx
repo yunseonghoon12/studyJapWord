@@ -1,29 +1,34 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
-  BATCH_SIZE_DEFAULT,
-  clearClearedBatchCounts,
-  getBatchSize,
-  setBatchSize,
-} from "@/lib/study-settings";
-
-const PRESETS = [10, 15, 20, 30];
+  DEFAULT_STUDY_CARD_VISIBILITY,
+  getStudyCardVisibility,
+  setStudyCardVisibility,
+  type StudyCardVisibility,
+} from "@/lib/study-card-visibility";
+import { clearClearedBatchCounts } from "@/lib/study-settings";
 
 export default function SettingsPage() {
   const router = useRouter();
-  const [n, setN] = useState(BATCH_SIZE_DEFAULT);
+  const searchParams = useSearchParams();
   const [resettingProgress, setResettingProgress] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  const [visibility, setVisibility] = useState<StudyCardVisibility>(
+    DEFAULT_STUDY_CARD_VISIBILITY
+  );
 
   useEffect(() => {
-    setN(getBatchSize());
+    setVisibility(getStudyCardVisibility());
   }, []);
 
-  const apply = (v: number) => {
-    setBatchSize(v);
-    setN(v);
+  const toggleMask = (key: keyof StudyCardVisibility) => {
+    setVisibility((prev) => {
+      const next = { ...prev, [key]: !prev[key] };
+      setStudyCardVisibility(next);
+      return next;
+    });
   };
 
   const resetStudyProgress = async () => {
@@ -46,11 +51,20 @@ export default function SettingsPage() {
     }
   };
 
+  const handleBack = () => {
+    const returnTo = searchParams.get("returnTo");
+    if (returnTo && returnTo.startsWith("/")) {
+      router.push(returnTo);
+      return;
+    }
+    router.back();
+  };
+
   return (
     <main className="mx-auto min-h-dvh max-w-lg px-4 py-8">
       <button
         type="button"
-        onClick={() => router.back()}
+        onClick={handleBack}
         className="text-sm font-medium text-zinc-600 hover:text-zinc-900"
       >
         ← 뒤로
@@ -58,34 +72,42 @@ export default function SettingsPage() {
       <h1 className="mt-4 text-2xl font-semibold text-zinc-900">설정</h1>
 
       <section className="mt-8 rounded-2xl border border-zinc-200/70 bg-white/72 p-5 shadow-sm backdrop-blur-md">
-        <h2 className="text-sm font-semibold text-zinc-500">세트당 단어 수</h2>
-        <p className="mt-1 text-xs text-zinc-500">
-          {PRESETS.join("·")}개 중 선택
+        <h2 className="text-sm font-semibold text-zinc-700">스터디 카드 가리기</h2>
+        <p className="mt-1 text-xs leading-relaxed text-zinc-500">
+          체크하면 스터디 카드에서 해당 항목이 블러(모자이크)로 가려집니다.
         </p>
-        <div className="mt-4 flex flex-wrap gap-2">
-          {PRESETS.map((p) => (
-            <button
-              key={p}
-              type="button"
-              onClick={() => apply(p)}
-              className={`rounded-xl px-4 py-2 text-sm font-medium transition ${
-                n === p
-                  ? "bg-zinc-900 text-white"
-                  : "border border-zinc-200/70 bg-white/75 text-zinc-800 backdrop-blur-sm hover:bg-pink-50/60"
-              }`}
-            >
-              {p}개
-            </button>
-          ))}
+        <div className="mt-4 flex flex-col gap-2">
+          <label className="flex items-center justify-between rounded-xl border border-zinc-200/70 bg-white/80 px-3 py-2 text-sm text-zinc-800">
+            <span>한자 가리기</span>
+            <input
+              type="checkbox"
+              checked={visibility.hideKanji}
+              onChange={() => toggleMask("hideKanji")}
+              className="h-4 w-4 accent-zinc-900"
+            />
+          </label>
+          <label className="flex items-center justify-between rounded-xl border border-zinc-200/70 bg-white/80 px-3 py-2 text-sm text-zinc-800">
+            <span>히라가나 가리기</span>
+            <input
+              type="checkbox"
+              checked={visibility.hideReading}
+              onChange={() => toggleMask("hideReading")}
+              className="h-4 w-4 accent-zinc-900"
+            />
+          </label>
+          <label className="flex items-center justify-between rounded-xl border border-zinc-200/70 bg-white/80 px-3 py-2 text-sm text-zinc-800">
+            <span>뜻 가리기</span>
+            <input
+              type="checkbox"
+              checked={visibility.hideMeaning}
+              onChange={() => toggleMask("hideMeaning")}
+              className="h-4 w-4 accent-zinc-900"
+            />
+          </label>
         </div>
-        <p className="mt-4 text-sm leading-relaxed text-zinc-600">
-          한 세트에 학습할 단어 수입니다. 시험을 통과하면 다음 세트로 넘어갑니다.
-          기본은 {BATCH_SIZE_DEFAULT}개이며, 레벨에 남은 단어가 그보다 적으면 남은 개수
-          전체가 한 세트가 됩니다.
-        </p>
       </section>
 
-      <section className="mt-5 rounded-2xl border border-red-200/70 bg-red-50/60 p-5 shadow-sm backdrop-blur-md">
+      <section className="mt-8 rounded-2xl border border-red-200/70 bg-red-50/60 p-5 shadow-sm backdrop-blur-md">
         <h2 className="text-sm font-semibold text-red-700">학습 진행 초기화</h2>
         <p className="mt-1 text-xs leading-relaxed text-red-700/90">
           지금까지 공부해서 연 단어 상태를 모두 초기화합니다.

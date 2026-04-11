@@ -2,10 +2,17 @@
 
 import Link from "next/link";
 import { motion, useReducedMotion } from "framer-motion";
+import {
+  studyIndexLevelBadgeClass,
+  studyIndexRowClass,
+} from "@/components/study-index-level-design";
 
 const STAGGER = 0.065;
 const DURATION = 0.35;
 const EASE = [0, 0, 0.2, 1] as const;
+
+const metaEnabled = "text-sm tabular-nums text-zinc-500";
+const metaDisabled = "text-sm font-medium text-zinc-400";
 
 export type StudyLevelRow = {
   level: string;
@@ -28,7 +35,7 @@ export function AnimatedStudyLevelList({ rows }: Props) {
   };
 
   const item = {
-    hidden: { opacity: 0, y: 80 },
+    hidden: { opacity: 0, y: 20 },
     visible: {
       opacity: 1,
       y: 0,
@@ -47,21 +54,31 @@ export function AnimatedStudyLevelList({ rows }: Props) {
       animate="visible"
     >
       {rows.map(({ level, count: n }) => {
-        const rowClass = n
-          ? "flex items-center justify-between rounded-xl border border-zinc-200/70 bg-white/72 px-4 py-4 text-lg font-medium text-zinc-900 shadow-sm backdrop-blur-md transition hover:border-pink-200/80 hover:bg-pink-50/50"
-          : "flex cursor-not-allowed items-center justify-between rounded-xl border border-dashed border-zinc-200/70 bg-zinc-50/55 px-4 py-4 text-lg text-zinc-400 backdrop-blur-sm";
+        const enabled = Boolean(n);
 
         return (
-          <motion.li key={level} variants={item}>
-            {n ? (
-              <Link href={`/study/${level}`} className={rowClass}>
-                <span>{level}</span>
-                <span className="text-sm font-normal text-zinc-500">{n}개</span>
+          <motion.li key={level} variants={item} className="w-full">
+            {enabled ? (
+              <Link
+                href={`/study/${level}`}
+                className={studyIndexRowClass(level, true)}
+                aria-label={`${level} 단어 공부로 이동, ${n}개`}
+              >
+                <span className={studyIndexLevelBadgeClass(level, true)}>
+                  {level}
+                </span>
+                <span className={metaEnabled}>{n}개</span>
               </Link>
             ) : (
-              <div className={rowClass} aria-disabled>
-                <span>{level}</span>
-                <span className="text-sm font-normal text-zinc-500">준비 중</span>
+              <div
+                className={studyIndexRowClass(level, false)}
+                aria-disabled
+                aria-label={`${level} 준비 중`}
+              >
+                <span className={studyIndexLevelBadgeClass(level, false)}>
+                  {level}
+                </span>
+                <span className={metaDisabled}>준비 중</span>
               </div>
             )}
           </motion.li>

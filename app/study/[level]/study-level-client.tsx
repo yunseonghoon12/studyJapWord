@@ -1,8 +1,10 @@
 "use client";
 
 import Link from "next/link";
+import { motion } from "framer-motion";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { StudyCard } from "@/components/StudyCard";
+import { VocabularyStudyWordsList } from "@/components/vocabulary-study-words-list";
 import { readClientCache, writeClientCache } from "@/lib/client-cache";
 import {
   buildQuizQuestionForWord,
@@ -12,6 +14,11 @@ import { readJsonResponse } from "@/lib/read-json-response";
 import type { QuizQuestion } from "@/lib/quiz-types";
 import { QUIZ_TYPES, quizTypeLabel } from "@/lib/quiz-types";
 import { shuffle } from "@/lib/shuffle";
+import {
+  DEFAULT_STUDY_CARD_VISIBILITY,
+  getStudyCardVisibility,
+  type StudyCardVisibility,
+} from "@/lib/study-card-visibility";
 import {
   getBatchSize,
   getClearedBatchCount,
@@ -54,14 +61,19 @@ const bottomNavItem =
 function BottomNav({
   onStartTest,
   resultOnlyHome = false,
+  hideTest = false,
+  settingsHref = "/settings",
 }: {
   onStartTest: () => void;
   resultOnlyHome?: boolean;
+  /** 세트 없이 연 단어만 볼 때는 통과 시험 숨김 */
+  hideTest?: boolean;
+  settingsHref?: string;
 }) {
   return (
     <nav className="mt-auto flex w-full shrink-0 justify-center px-2 py-1.5 pt-2.5 pb-[max(0.375rem,env(safe-area-inset-bottom,0px))] sm:px-3">
       <div className="flex max-w-full items-center justify-center gap-1.5 sm:gap-2">
-        {!resultOnlyHome ? (
+        {!resultOnlyHome && !hideTest ? (
           <button type="button" onClick={onStartTest} className={bottomNavItem}>
             テスト
           </button>
@@ -70,7 +82,7 @@ function BottomNav({
           ホームへ
         </Link>
         {!resultOnlyHome ? (
-          <Link href="/settings" className={bottomNavItem}>
+          <Link href={settingsHref} className={bottomNavItem}>
             セッティング
           </Link>
         ) : null}
@@ -81,8 +93,14 @@ function BottomNav({
 
 export function StudyLevelClient({ level }: { level: string }) {
   const [words, setWords] = useState<WordRow[]>([]);
+  /** 세트 선택의「모든 단어」: 이 레벨에서 단어 공부로 연 단어만 한 목록 */
+  const [openedBrowseWords, setOpenedBrowseWords] = useState<WordRow[] | null>(
+    null
+  );
+  const [openingAllWords, setOpeningAllWords] = useState(false);
   const [batchSize, setBatchSize] = useState(20);
   const [clearedBatches, setClearedBatches] = useState(0);
+  const [selectedBatch, setSelectedBatch] = useState<number | null>(null);
   const [phase, setPhase] = useState<Phase>("study");
   const [stepIndex, setStepIndex] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -97,14 +115,34 @@ export function StudyLevelClient({ level }: { level: string }) {
     score: number;
     total: number;
   } | null>(null);
+  const [visibility, setVisibility] = useState<StudyCardVisibility>(
+    DEFAULT_STUDY_CARD_VISIBILITY
+  );
 
   useEffect(() => {
     setBatchSize(getBatchSize());
     setClearedBatches(getClearedBatchCount(level));
+    setVisibility(getStudyCardVisibility());
+    const qs =
+      typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
+    const batchFromUrl = qs?.get("batch");
+    if (batchFromUrl !== null && batchFromUrl !== "") {
+      const n = Number(batchFromUrl);
+      if (Number.isFinite(n) && n >= 1) {
+        setSelectedBatch(Math.floor(n) - 1);
+        return;
+      }
+    }
+    // 기본 진입은 항상 세트 선택 화면
+    setSelectedBatch(null);
+    setOpenedBrowseWords(null);
   }, [level]);
 
   useEffect(() => {
-    const sync = () => setBatchSize(getBatchSize());
+    const sync = () => {
+      setBatchSize(getBatchSize());
+      setVisibility(getStudyCardVisibility());
+    };
     window.addEventListener("focus", sync);
     return () => window.removeEventListener("focus", sync);
   }, []);
@@ -156,14 +194,36 @@ export function StudyLevelClient({ level }: { level: string }) {
     };
   }, [level]);
 
-  const batchWords = useMemo(() => {
-    const start = clearedBatches * batchSize;
-    return words.slice(start, start + batchSize);
-  }, [words, clearedBatches, batchSize]);
+  const totalBatches = useMemo(
+    () => (batchSize > 0 ? Math.ceil(words.length / batchSize) : 0),
+    [words.length, batchSize]
+  );
 
-  const pool = useMemo(() => words.map(toPoolRow), [words]);
+  useEffect(() => {
+    if (totalBatches <= 0) return;
+    const unlockedMax = Math.min(clearedBatches, totalBatches - 1);
+    setSelectedBatch((prev) => (prev === null ? null : Math.min(prev, unlockedMax)));
+  }, [clearedBatches, totalBatches]);
+
+  const batchWords = useMemo(() => {
+    if (openedBrowseWords !== null) return openedBrowseWords;
+    if (selectedBatch === null) return [];
+    const start = selectedBatch * batchSize;
+    return words.slice(start, start + batchSize);
+  }, [words, openedBrowseWords, selectedBatch, batchSize]);
+
+  const pool = useMemo(() => {
+    const src = openedBrowseWords ?? words;
+    return src.map(toPoolRow);
+  }, [openedBrowseWords, words]);
 
   const current = batchWords[stepIndex];
+
+  useEffect(() => {
+    if (phase === "study" && batchWords.length > 0 && !current) {
+      setStepIndex(0);
+    }
+  }, [phase, batchWords.length, current]);
 
   const postStudy = useCallback(async (wordId: string, wrong: boolean) => {
     try {
@@ -192,6 +252,19 @@ export function StudyLevelClient({ level }: { level: string }) {
           : w
       )
     );
+    setOpenedBrowseWords((prev) =>
+      prev
+        ? prev.map((w) =>
+            w.id === wordId
+              ? {
+                  ...w,
+                  wrongCount: wrong ? w.wrongCount + 1 : w.wrongCount,
+                  correctCount: wrong ? w.correctCount : w.correctCount + 1,
+                }
+              : w
+          )
+        : null
+    );
   }, []);
 
   const markSeenOpen = useCallback(async (wordId: string) => {
@@ -207,12 +280,17 @@ export function StudyLevelClient({ level }: { level: string }) {
   }, []);
 
   useEffect(() => {
+    if (openedBrowseWords !== null) return;
     if (phase === "study" && current?.id) void markSeenOpen(current.id);
-  }, [phase, current?.id, markSeenOpen]);
+  }, [phase, current?.id, markSeenOpen, openedBrowseWords]);
 
   const nextCard = () => {
     if (stepIndex + 1 >= batchWords.length) {
-      startBatchExam();
+      if (openedBrowseWords === null) {
+        startBatchExam();
+      } else {
+        setStepIndex(0);
+      }
       return;
     }
     setStepIndex((i) => i + 1);
@@ -222,7 +300,28 @@ export function StudyLevelClient({ level }: { level: string }) {
     setStepIndex((i) => Math.max(0, i - 1));
   };
 
+  const handleCardSwipe = (offsetX: number, velocityX: number) => {
+    // 느린 드래그/빠른 플릭 모두 허용
+    const passedByOffset = Math.abs(offsetX) > 120;
+    const passedByVelocity = Math.abs(velocityX) > 700;
+    if (!passedByOffset && !passedByVelocity) return;
+    if (offsetX < 0 || velocityX < 0) {
+      nextCard();
+    } else {
+      prevCard();
+    }
+  };
+
   const startBatchExam = () => {
+    if (selectedBatch === null) {
+      setError("먼저 세트를 선택해 주세요.");
+      return;
+    }
+    const unlockedMax = Math.max(0, clearedBatches);
+    if (selectedBatch > unlockedMax) {
+      setError("이 세트는 아직 잠겨 있습니다. 이전 세트를 먼저 통과해 주세요.");
+      return;
+    }
     if (batchWords.length < 4) {
       setError(
         "이 세트로는 통과 시험을 만들 수 없습니다. 레벨 단어가 더 필요합니다."
@@ -283,6 +382,10 @@ export function StudyLevelClient({ level }: { level: string }) {
         const nextCleared = clearedBatches + 1;
         setClearedBatchCount(level, nextCleared);
         setClearedBatches(nextCleared);
+        if (nextCleared < totalBatches) {
+          setSelectedBatch(nextCleared);
+          setStepIndex(0);
+        }
       }
       return;
     }
@@ -301,6 +404,8 @@ export function StudyLevelClient({ level }: { level: string }) {
     examCorrectRunning,
     clearedBatches,
     level,
+    selectedBatch,
+    totalBatches,
   ]);
 
   useEffect(() => {
@@ -316,6 +421,58 @@ export function StudyLevelClient({ level }: { level: string }) {
     setError(null);
   };
 
+  const openBatch = (batchIndex: number) => {
+    setOpenedBrowseWords(null);
+    setSelectedBatch(batchIndex);
+    setStepIndex(0);
+    setPhase("study");
+    setError(null);
+    setExamPicked(null);
+    setExamIdx(0);
+    setExamQs([]);
+    setExamResult(null);
+  };
+
+  const exitOpenedBrowse = () => {
+    setOpenedBrowseWords(null);
+    setStepIndex(0);
+    setPhase("study");
+    setError(null);
+    setExamPicked(null);
+    setExamIdx(0);
+    setExamQs([]);
+    setExamResult(null);
+  };
+
+  const openAllOpenedWords = useCallback(async () => {
+    setOpeningAllWords(true);
+    setError(null);
+    try {
+      const res = await fetch(
+        `/api/words/opened?level=${encodeURIComponent(level)}`,
+        { cache: "no-store" }
+      );
+      const data = await readJsonResponse<{
+        words?: WordRow[];
+        error?: string;
+      }>(res);
+      if (!res.ok) throw new Error(data.error ?? "불러오기 실패");
+      const list = data.words ?? [];
+      if (list.length === 0) {
+        setError("아직 이 레벨에서 단어 공부로 연 단어가 없습니다.");
+        return;
+      }
+      setOpenedBrowseWords(list);
+      setSelectedBatch(null);
+      setStepIndex(0);
+      setPhase("study");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "오류");
+    } finally {
+      setOpeningAllWords(false);
+    }
+  }, [level]);
+
   const leaveExamForStudy = () => {
     setPhase("study");
     setExamQs([]);
@@ -328,12 +485,17 @@ export function StudyLevelClient({ level }: { level: string }) {
 
   const navBtn =
     "rounded-lg border border-zinc-200/75 bg-white/78 px-4 py-2.5 text-[15px] font-medium text-zinc-800 shadow-sm backdrop-blur-md disabled:cursor-not-allowed disabled:opacity-40 hover:bg-pink-50/65";
+  const settingsReturnTo = `/study/${encodeURIComponent(level)}${
+    selectedBatch !== null ? `?batch=${selectedBatch + 1}` : ""
+  }`;
+  const settingsHref = `/settings?returnTo=${encodeURIComponent(settingsReturnTo)}`;
 
   return (
-    <main className="mx-auto flex min-h-dvh max-w-lg flex-col px-2 text-[15px]">
+    <main className="mx-auto flex h-dvh max-w-lg flex-col overflow-y-auto px-2 text-[15px] [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
       {!loading &&
         !error &&
         phase === "study" &&
+        openedBrowseWords === null &&
         batchWords.length > 0 &&
         current && (
           <header className="flex shrink-0 items-center justify-between gap-2 py-2">
@@ -354,7 +516,70 @@ export function StudyLevelClient({ level }: { level: string }) {
           </header>
         )}
 
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+      {!loading &&
+        !error &&
+        totalBatches > 0 &&
+        phase === "study" &&
+        selectedBatch === null &&
+        openedBrowseWords === null && (
+        <section className="mb-2 mt-1 shrink-0 rounded-2xl border border-zinc-200/70 bg-white/70 p-3 shadow-[0_10px_30px_rgba(24,24,27,0.08)] backdrop-blur-md">
+          <div className="mb-3 flex items-start justify-between gap-2 px-1">
+            <div className="min-w-0 flex flex-1 flex-wrap items-center gap-2">
+              <span className="inline-flex h-6 shrink-0 items-center rounded-full border border-zinc-300/70 bg-white/75 px-2.5 text-xs font-semibold text-zinc-700">
+                세트 선택
+              </span>
+              <p className="text-xs text-zinc-500">단계별로 열려요</p>
+            </div>
+            <button
+              type="button"
+              disabled={openingAllWords}
+              onClick={() => void openAllOpenedWords()}
+              className="shrink-0 rounded-full border border-pink-200/90 bg-gradient-to-b from-pink-50/95 to-pink-100/80 px-3 py-1.5 text-xs font-semibold text-pink-950 shadow-[0_2px_8px_rgba(190,24,93,0.12)] transition hover:border-pink-300/90 hover:from-pink-50 hover:to-pink-100 disabled:cursor-wait disabled:opacity-60"
+            >
+              {openingAllWords ? "불러오는 중…" : "모든 단어"}
+            </button>
+          </div>
+          <div className="pr-1">
+            <div className="grid grid-cols-3 gap-2.5">
+            {Array.from({ length: totalBatches }, (_, i) => {
+              const unlocked = i <= clearedBatches;
+              const active = i === selectedBatch;
+              const batchLabel = `第${i + 1}`;
+              return (
+                <button
+                  key={`batch-${i + 1}`}
+                  type="button"
+                  disabled={!unlocked}
+                  onClick={() => openBatch(i)}
+                  className={`relative aspect-square rounded-2xl border px-2 py-2 text-lg font-semibold tracking-tight transition ${
+                    active
+                      ? "border-zinc-900 bg-zinc-900 text-white shadow-[0_8px_22px_rgba(24,24,27,0.28)]"
+                      : unlocked
+                        ? "border-zinc-200/80 bg-white/85 text-zinc-700 shadow-[0_4px_14px_rgba(24,24,27,0.08)] hover:-translate-y-0.5 hover:border-zinc-300/80 hover:bg-white"
+                        : "cursor-not-allowed border-zinc-200/80 bg-zinc-100/85 text-zinc-500"
+                  }`}
+                >
+                  <span className={`${unlocked ? "" : "opacity-45"}`}>{batchLabel}</span>
+                  {!unlocked ? (
+                    <span className="pointer-events-none absolute inset-0 flex items-center justify-center text-3xl opacity-60">
+                      🔒
+                    </span>
+                  ) : null}
+                </button>
+              );
+            })}
+            </div>
+          </div>
+        </section>
+      )}
+
+      <div
+        className={`flex min-h-0 flex-1 flex-col ${
+          openedBrowseWords !== null && phase === "study"
+            ? "min-h-0 overflow-hidden"
+            : "overflow-hidden"
+        }`}
+      >
         {loading && (
           <p className="flex flex-1 items-center justify-center text-zinc-500">
             불러오는 중…
@@ -365,36 +590,91 @@ export function StudyLevelClient({ level }: { level: string }) {
             {error}
           </p>
         )}
-        {!loading && !error && words.length === 0 && (
-          <p className="flex flex-1 items-center justify-center text-zinc-500">
-            표시할 단어가 없습니다.
-          </p>
-        )}
-        {!loading && !error && words.length > 0 && batchWords.length === 0 && (
+        {!loading &&
+          !error &&
+          words.length === 0 &&
+          openedBrowseWords === null && (
+            <p className="flex flex-1 items-center justify-center text-zinc-500">
+              표시할 단어가 없습니다.
+            </p>
+          )}
+        {!loading && !error && words.length > 0 && selectedBatch !== null && batchWords.length === 0 && (
           <p className="flex flex-1 items-center justify-center font-medium text-emerald-800">
             이 레벨의 모든 세트를 완료했습니다.
           </p>
         )}
 
-        {!loading && !error && phase === "study" && batchWords.length > 0 && current && (
-          <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-            <div className="min-h-0 flex-1 overflow-hidden">
-              <StudyCard
-                favoriteWordId={current.id}
-                data={{
-                  kanji: current.kanji,
-                  reading: current.reading,
-                  meaning: current.meaning,
-                  example: current.example,
-                  exampleReading: current.exampleReading,
-                  exampleMeaning: current.exampleMeaning,
-                  wrongCount: current.wrongCount,
-                  correctCount: current.correctCount,
+        {!loading &&
+          !error &&
+          phase === "study" &&
+          openedBrowseWords !== null &&
+          openedBrowseWords.length > 0 && (
+            <section className="mx-0.5 mb-1 flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-zinc-200/70 bg-white/70 shadow-[0_10px_30px_rgba(24,24,27,0.08)] backdrop-blur-md">
+              <div className="flex shrink-0 items-center gap-2 border-b border-zinc-200/60 px-3 py-3">
+                <button
+                  type="button"
+                  className={`${navBtn} shrink-0 text-sm`}
+                  onClick={exitOpenedBrowse}
+                >
+                  ← 세트 선택
+                </button>
+                <div className="min-w-0 flex-1 text-center">
+                  <span className="inline-flex h-6 items-center rounded-full border border-zinc-300/70 bg-white/75 px-2.5 text-xs font-semibold text-zinc-700">
+                    모든 단어
+                  </span>
+                  <p className="mt-1 text-[11px] leading-tight text-zinc-500">
+                    공부에서 연 단어 · {openedBrowseWords.length}개
+                  </p>
+                </div>
+                <div className="w-[5.25rem] shrink-0" aria-hidden />
+              </div>
+              <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-3 pt-1 [-webkit-overflow-scrolling:touch]">
+                <VocabularyStudyWordsList
+                  words={openedBrowseWords}
+                  showLevelFilter={false}
+                  embedded
+                />
+              </div>
+            </section>
+          )}
+
+        {!loading &&
+          !error &&
+          phase === "study" &&
+          openedBrowseWords === null &&
+          batchWords.length > 0 &&
+          current && (
+            <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+              <motion.div
+                className="min-h-0 flex-1 overflow-hidden"
+                drag="x"
+                dragConstraints={{ left: 0, right: 0 }}
+                dragElastic={0.15}
+                whileTap={{ scale: 0.995 }}
+                style={{ touchAction: "pan-y" }}
+                onDragEnd={(_, info) => {
+                  handleCardSwipe(info.offset.x, info.velocity.x);
                 }}
-              />
+              >
+                <StudyCard
+                  favoriteWordId={current.id}
+                  hideKanji={visibility.hideKanji}
+                  hideReading={visibility.hideReading}
+                  hideMeaning={visibility.hideMeaning}
+                  data={{
+                    kanji: current.kanji,
+                    reading: current.reading,
+                    meaning: current.meaning,
+                    example: current.example,
+                    exampleReading: current.exampleReading,
+                    exampleMeaning: current.exampleMeaning,
+                    wrongCount: current.wrongCount,
+                    correctCount: current.correctCount,
+                  }}
+                />
+              </motion.div>
             </div>
-          </div>
-        )}
+          )}
 
         {!loading && !error && phase === "batch-exam" && examQs.length > 0 && (
           <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
@@ -522,7 +802,12 @@ export function StudyLevelClient({ level }: { level: string }) {
       </div>
 
       {!loading && !error && phase !== "batch-exam" && (
-        <BottomNav onStartTest={startBatchExam} resultOnlyHome={phase === "batch-result"} />
+        <BottomNav
+          onStartTest={startBatchExam}
+          resultOnlyHome={phase === "batch-result"}
+          hideTest={openedBrowseWords !== null}
+          settingsHref={settingsHref}
+        />
       )}
     </main>
   );

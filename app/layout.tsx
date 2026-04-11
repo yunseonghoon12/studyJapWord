@@ -1,4 +1,7 @@
 import type { Metadata } from "next";
+import { AttendanceProvider } from "@/components/attendance-context";
+import { JlptTwPreflight } from "@/components/jlpt-tw-preflight";
+import { VocabularyWarmup } from "@/components/vocabulary-warmup";
 import { appFont } from "@/lib/study-card-font";
 import "./globals.css";
 
@@ -32,7 +35,11 @@ export default function RootLayout({
           <div className="absolute inset-0 bg-[radial-gradient(ellipse_88%_78%_at_50%_48%,rgba(255,251,252,0.92)_0%,rgba(255,255,255,0.45)_42%,transparent_70%)]" />
           <div className="absolute inset-0 bg-gradient-to-t from-white/25 via-transparent to-rose-50/20" />
         </div>
-        {children}
+        <JlptTwPreflight />
+        <AttendanceProvider>
+          <VocabularyWarmup />
+          {children}
+        </AttendanceProvider>
       </body>
     </html>
   );
