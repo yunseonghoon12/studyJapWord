@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { stableRandomRank } from "@/lib/stable-random-order";
 
 const CACHE_HEADERS = {
-  "Cache-Control": "public, s-maxage=15, stale-while-revalidate=90",
+  "Cache-Control": "private, no-store, must-revalidate",
 };
 
 type Row = Prisma.WordGetPayload<{ include: { userWord: true } }>;
@@ -20,6 +20,12 @@ function sortRows(rows: Row[]): Row[] {
   return [...rows].sort((a, b) => {
     const lv = levelRank(a.level) - levelRank(b.level);
     if (lv !== 0) return lv;
+    if (a.level === "N4" && b.level === "N4") {
+      const na = a.sortIndex ?? Number.MAX_SAFE_INTEGER;
+      const nb = b.sortIndex ?? Number.MAX_SAFE_INTEGER;
+      if (na !== nb) return na - nb;
+      return a.id.localeCompare(b.id);
+    }
     const ra = stableRandomRank(a.id);
     const rb = stableRandomRank(b.id);
     if (ra !== rb) return ra - rb;

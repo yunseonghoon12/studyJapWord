@@ -10,6 +10,8 @@ datasource db {
 model Word {
   id              String    @id @default(cuid())
   level           String
+  /** N4 등 파일 순서 유지용. null이면 id 기반 안정 랜덤 정렬 */
+  sortIndex       Int?
   kanji           String?
   reading         String
   meaning         String

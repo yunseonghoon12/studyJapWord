@@ -52,7 +52,7 @@ function toPoolRow(w: WordRow): WordQuizRow {
 
 const EXAM_QUESTION_TARGET = 12;
 const WORDS_CACHE_TTL_MS = 1000 * 60 * 60 * 24;
-const WORDS_CACHE_VERSION = 1;
+const WORDS_CACHE_VERSION = 3;
 
 /** StudyCard와 동일: `rounded-xl` + `border-zinc-800`, 배경 없음 */
 const bottomNavItem =
@@ -165,7 +165,10 @@ export function StudyLevelClient({ level }: { level: string }) {
       }
       setError(null);
       try {
-        const res = await fetch(`/api/words?level=${encodeURIComponent(level)}`);
+        const res = await fetch(
+          `/api/words?level=${encodeURIComponent(level)}`,
+          { cache: "no-store" }
+        );
         const data = await readJsonResponse<{
           words?: WordRow[];
           error?: string;

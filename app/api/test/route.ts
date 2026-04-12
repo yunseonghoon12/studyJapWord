@@ -60,9 +60,18 @@ export async function GET(request: Request) {
   const allInLevel = await prisma.word.findMany({
     where: { level },
     include: { userWord: true },
-    orderBy: [{ id: "asc" }],
+    orderBy:
+      level === "N4"
+        ? [
+            { sortIndex: { sort: "asc", nulls: "last" } },
+            { id: "asc" },
+          ]
+        : [{ id: "asc" }],
   });
-  const orderedLevel = sortByStableRandom(allInLevel, (w) => w.id);
+  const orderedLevel =
+    level === "N4"
+      ? allInLevel
+      : sortByStableRandom(allInLevel, (w) => w.id);
 
   const poolLevelEligible = filterEligible(orderedLevel).map(toQuizRow);
 

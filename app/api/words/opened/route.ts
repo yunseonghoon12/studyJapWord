@@ -26,9 +26,18 @@ export async function GET(request: Request) {
       },
     },
     include: { userWord: true },
-    orderBy: [{ id: "asc" }],
+    orderBy:
+      level === "N4"
+        ? [
+            { sortIndex: { sort: "asc", nulls: "last" } },
+            { id: "asc" },
+          ]
+        : [{ id: "asc" }],
   });
-  const orderedRows = sortByStableRandom(rows, (w) => w.id);
+  const orderedRows =
+    level === "N4"
+      ? rows
+      : sortByStableRandom(rows, (w) => w.id);
   const words = orderedRows.map((w) => mapDbWordToStudyRow(w));
 
   return NextResponse.json({ words }, { headers: CACHE_HEADERS });

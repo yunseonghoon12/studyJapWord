@@ -3,7 +3,7 @@ import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 
 const CACHE_HEADERS = {
-  "Cache-Control": "public, s-maxage=20, stale-while-revalidate=120",
+  "Cache-Control": "private, no-store, must-revalidate",
 };
 
 type Row = Prisma.WordGetPayload<{ include: { userWord: true } }>;
