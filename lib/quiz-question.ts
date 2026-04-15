@@ -142,9 +142,6 @@ export function buildQuizQuestionForWord(
       case "kanji-reading":
         built = buildKanjiMcQuestion(w, pool, "reading", distractorCount);
         break;
-      case "example-blank":
-        built = buildExampleBlankQuestion(w, pool, distractorCount);
-        break;
       case "meaning-word":
         built = buildMeaningToSurfaceQuestion(w, pool, distractorCount);
         break;
