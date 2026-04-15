@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { AnimatedStudyLevelList } from "@/components/animated-study-level-list";
 import { AnimatedStudyProgress } from "@/components/animated-study-progress";
 import { StudyIndexNav } from "./study-index-nav";
@@ -39,12 +38,6 @@ export default async function StudyIndexPage() {
         <StudyIndexNav />
         <h1 className="mt-4 text-2xl font-semibold text-zinc-900">레벨 선택</h1>
         <p className="mt-1 text-zinc-600">JLPT 기준으로 단어를 공부합니다.</p>
-        <Link
-          href="/settings"
-          className="mt-3 inline-block text-sm font-medium text-zinc-500 hover:text-zinc-900"
-        >
-          세트당 단어 수 설정 →
-        </Link>
       </div>
       <AnimatedStudyLevelList
         rows={JLPT_LEVELS.map((level) => ({

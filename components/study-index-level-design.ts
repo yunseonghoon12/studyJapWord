@@ -4,11 +4,11 @@ import { jlptLevelToneBadgeClass } from "@/components/jlpt-level-styles";
  * `/study` 레벨 선택·진행률 — 색상은 `jlpt-level-styles` 톤 팔레트와 단일 소스.
  */
 export function studyIndexLevelBadgeClass(level: string, enabled: boolean): string {
-  return jlptLevelToneBadgeClass(level, enabled);
+  return `${jlptLevelToneBadgeClass(level, enabled)} min-w-[2.75rem] px-2.5 py-1 text-sm`;
 }
 
 const rowBase =
-  "group flex w-full items-center justify-between gap-3 rounded-lg border border-zinc-200/60 bg-white/90 px-3 py-2.5 transition-[box-shadow,background-color,border-color] duration-200";
+  "group flex min-h-14 w-full items-center justify-between gap-3 rounded-xl border border-zinc-200/60 bg-white/90 px-4 py-3.5 transition-[box-shadow,background-color,border-color] duration-200";
 
 export function studyIndexRowClass(level: string, enabled: boolean): string {
   if (enabled) {

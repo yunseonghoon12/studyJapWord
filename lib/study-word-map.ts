@@ -10,6 +10,7 @@ export type StudyWordRow = {
   exampleMeaning: string | null;
   wrongCount: number;
   correctCount: number;
+  seenInStudy: boolean;
 };
 
 type DbWord = {
@@ -21,7 +22,7 @@ type DbWord = {
   example: string;
   exampleReading: string | null;
   exampleMeaning: string | null;
-  userWord: { wrongCount: number; correctCount: number } | null;
+  userWord: { wrongCount: number; correctCount: number; seenInStudy: boolean } | null;
 };
 
 export function mapDbWordToStudyRow(w: DbWord): StudyWordRow {
@@ -44,5 +45,6 @@ export function mapDbWordToStudyRow(w: DbWord): StudyWordRow {
     exampleMeaning,
     wrongCount: w.userWord?.wrongCount ?? 0,
     correctCount: w.userWord?.correctCount ?? 0,
+    seenInStudy: w.userWord?.seenInStudy ?? false,
   };
 }

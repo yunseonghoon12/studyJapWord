@@ -73,11 +73,8 @@ export function VocabularyStudyWordsList({
   return (
     <div className={outerClass}>
       {showLevelFilter && (
-        <div className="mb-4">
-          <p className="text-xs font-medium tracking-wide text-zinc-500">
-            난이도
-          </p>
-          <div className="mt-2 flex flex-wrap gap-2">
+        <div className="mb-2.5">
+          <div className="flex flex-wrap gap-1.5">
             {JLPT_LEVELS.map((lv) => (
               <button
                 key={lv}
@@ -86,7 +83,10 @@ export function VocabularyStudyWordsList({
                   setStudyLevel(lv);
                   setOpenId(null);
                 }}
-                className={jlptLevelToggleClass(lv, studyLevel === lv)}
+                className={`${jlptLevelToggleClass(
+                  lv,
+                  studyLevel === lv
+                )} px-2.5 py-1 text-xs`}
               >
                 {lv}
               </button>
@@ -190,7 +190,10 @@ export function VocabularyStudyWordsList({
                     </div>
                   </div>
                   {open ? (
-                    <div className="border-t border-zinc-200/70 bg-zinc-50/40 px-2 pb-2.5 pt-2 sm:px-3">
+                    <div className="relative border-t border-zinc-200/70 bg-zinc-50/40 px-2 pb-2.5 pt-2 sm:px-3">
+                      <div className="pointer-events-none absolute right-4 top-4 z-10">
+                        <span className={jlptLevelPillClass(w.level)}>{w.level}</span>
+                      </div>
                       <StudyCard
                         data={{
                           kanji: w.kanji,

@@ -284,13 +284,7 @@ export function TestPageClient() {
               {qi + 1} / {questions.length}
             </span>
           </div>
-          <p
-            className={`font-semibold leading-snug text-zinc-900 ${
-              q.type === "example-blank"
-                ? "text-lg sm:text-xl"
-                : "text-2xl sm:text-3xl"
-            }`}
-          >
+          <p className="font-semibold leading-snug text-zinc-900 text-2xl sm:text-3xl">
             {q.prompt}
           </p>
           <p className="mt-1 text-sm text-zinc-500">

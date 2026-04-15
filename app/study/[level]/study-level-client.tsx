@@ -14,6 +14,7 @@ import { readJsonResponse } from "@/lib/read-json-response";
 import type { QuizQuestion } from "@/lib/quiz-types";
 import { QUIZ_TYPES, quizTypeLabel } from "@/lib/quiz-types";
 import { shuffle } from "@/lib/shuffle";
+import { jlptLevelProgressBarFillPastelClass } from "@/components/jlpt-level-styles";
 import {
   DEFAULT_STUDY_CARD_VISIBILITY,
   getStudyCardVisibility,
@@ -36,6 +37,7 @@ type WordRow = {
   exampleMeaning: string | null;
   wrongCount: number;
   correctCount: number;
+  seenInStudy: boolean;
 };
 
 type Phase = "study" | "batch-exam" | "batch-result";
@@ -53,22 +55,64 @@ function toPoolRow(w: WordRow): WordQuizRow {
 const EXAM_QUESTION_TARGET = 12;
 const WORDS_CACHE_TTL_MS = 1000 * 60 * 60 * 24;
 const WORDS_CACHE_VERSION = 3;
+const SET_PROGRESS_FILL_DURATION_SEC = 0.55;
+const SET_PROGRESS_FILL_OVERLAP_RATIO = 0.4;
+const SET_PROGRESS_FILL_START_DELAY_SEC = 0.08;
+const SET_PROGRESS_FILL_EASE = [0.42, 0, 0.58, 1] as const;
 
 /** StudyCard와 동일: `rounded-xl` + `border-zinc-800`, 배경 없음 */
 const bottomNavItem =
   "inline-flex shrink-0 items-center justify-center rounded-xl border border-zinc-800 bg-transparent px-2 py-1.5 text-center text-base font-medium leading-snug text-zinc-800 transition-colors duration-200 [-webkit-tap-highlight-color:transparent] active:scale-[0.98] hover:border-pink-400/90 hover:bg-pink-50/55 hover:text-zinc-900 sm:px-2.5 sm:text-[17px]";
 
+function AnimatedPercent({ value, delaySec = 0 }: { value: number; delaySec?: number }) {
+  const [display, setDisplay] = useState(0);
+
+  useEffect(() => {
+    let raf = 0;
+    let timeout = 0;
+
+    const start = () => {
+      const begin = performance.now();
+      const durationMs = 550;
+      const target = Math.max(0, Math.min(100, value));
+
+      const tick = (now: number) => {
+        const t = Math.min(1, (now - begin) / durationMs);
+        const eased =
+          t < 0.5 ? 4 * t * t * t : 1 - ((-2 * t + 2) ** 3) / 2;
+        setDisplay(Math.round(target * eased));
+        if (t < 1) raf = requestAnimationFrame(tick);
+      };
+
+      raf = requestAnimationFrame(tick);
+    };
+
+    timeout = window.setTimeout(start, Math.max(0, delaySec) * 1000);
+    return () => {
+      window.clearTimeout(timeout);
+      if (raf) cancelAnimationFrame(raf);
+    };
+  }, [value, delaySec]);
+
+  return (
+    <>
+      {display}
+      <span className="text-xs font-medium text-zinc-400">%</span>
+    </>
+  );
+}
+
 function BottomNav({
   onStartTest,
+  onOpenSetSelect,
   resultOnlyHome = false,
   hideTest = false,
-  settingsHref = "/settings",
 }: {
   onStartTest: () => void;
+  onOpenSetSelect: () => void;
   resultOnlyHome?: boolean;
   /** 세트 없이 연 단어만 볼 때는 통과 시험 숨김 */
   hideTest?: boolean;
-  settingsHref?: string;
 }) {
   return (
     <nav className="mt-auto flex w-full shrink-0 justify-center px-2 py-1.5 pt-2.5 pb-[max(0.375rem,env(safe-area-inset-bottom,0px))] sm:px-3">
@@ -82,9 +126,9 @@ function BottomNav({
           ホームへ
         </Link>
         {!resultOnlyHome ? (
-          <Link href={settingsHref} className={bottomNavItem}>
-            セッティング
-          </Link>
+          <button type="button" onClick={onOpenSetSelect} className={bottomNavItem}>
+            セット
+          </button>
         ) : null}
       </div>
     </nav>
@@ -115,6 +159,7 @@ export function StudyLevelClient({ level }: { level: string }) {
     score: number;
     total: number;
   } | null>(null);
+  const [maskReadingMeaning, setMaskReadingMeaning] = useState(false);
   const [visibility, setVisibility] = useState<StudyCardVisibility>(
     DEFAULT_STUDY_CARD_VISIBILITY
   );
@@ -136,6 +181,7 @@ export function StudyLevelClient({ level }: { level: string }) {
     // 기본 진입은 항상 세트 선택 화면
     setSelectedBatch(null);
     setOpenedBrowseWords(null);
+    setMaskReadingMeaning(false);
   }, [level]);
 
   useEffect(() => {
@@ -249,6 +295,7 @@ export function StudyLevelClient({ level }: { level: string }) {
         w.id === wordId
           ? {
               ...w,
+              seenInStudy: true,
               wrongCount: wrong ? w.wrongCount + 1 : w.wrongCount,
               correctCount: wrong ? w.correctCount : w.correctCount + 1,
             }
@@ -261,6 +308,7 @@ export function StudyLevelClient({ level }: { level: string }) {
             w.id === wordId
               ? {
                   ...w,
+                  seenInStudy: true,
                   wrongCount: wrong ? w.wrongCount + 1 : w.wrongCount,
                   correctCount: wrong ? w.correctCount : w.correctCount + 1,
                 }
@@ -271,6 +319,14 @@ export function StudyLevelClient({ level }: { level: string }) {
   }, []);
 
   const markSeenOpen = useCallback(async (wordId: string) => {
+    setWords((prev) =>
+      prev.map((w) => (w.id === wordId ? { ...w, seenInStudy: true } : w))
+    );
+    setOpenedBrowseWords((prev) =>
+      prev
+        ? prev.map((w) => (w.id === wordId ? { ...w, seenInStudy: true } : w))
+        : null
+    );
     try {
       await fetch("/api/user-word", {
         method: "POST",
@@ -382,7 +438,8 @@ export function StudyLevelClient({ level }: { level: string }) {
       setExamResult({ pass, score: nextScore, total });
       setPhase("batch-result");
       if (pass) {
-        const nextCleared = clearedBatches + 1;
+        const passedBatch = selectedBatch ?? 0;
+        const nextCleared = Math.max(clearedBatches, passedBatch + 1);
         setClearedBatchCount(level, nextCleared);
         setClearedBatches(nextCleared);
         if (nextCleared < totalBatches) {
@@ -427,6 +484,7 @@ export function StudyLevelClient({ level }: { level: string }) {
   const openBatch = (batchIndex: number) => {
     setOpenedBrowseWords(null);
     setSelectedBatch(batchIndex);
+    setMaskReadingMeaning(false);
     setStepIndex(0);
     setPhase("study");
     setError(null);
@@ -488,10 +546,17 @@ export function StudyLevelClient({ level }: { level: string }) {
 
   const navBtn =
     "rounded-lg border border-zinc-200/75 bg-white/78 px-4 py-2.5 text-[15px] font-medium text-zinc-800 shadow-sm backdrop-blur-md disabled:cursor-not-allowed disabled:opacity-40 hover:bg-pink-50/65";
-  const settingsReturnTo = `/study/${encodeURIComponent(level)}${
-    selectedBatch !== null ? `?batch=${selectedBatch + 1}` : ""
-  }`;
-  const settingsHref = `/settings?returnTo=${encodeURIComponent(settingsReturnTo)}`;
+  const openSetSelect = () => {
+    setOpenedBrowseWords(null);
+    setSelectedBatch(null);
+    setStepIndex(0);
+    setPhase("study");
+    setError(null);
+    setExamPicked(null);
+    setExamIdx(0);
+    setExamQs([]);
+    setExamResult(null);
+  };
 
   return (
     <main className="mx-auto flex h-dvh max-w-lg flex-col overflow-y-auto px-2 text-[15px] [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
@@ -525,55 +590,104 @@ export function StudyLevelClient({ level }: { level: string }) {
         phase === "study" &&
         selectedBatch === null &&
         openedBrowseWords === null && (
-        <section className="mb-2 mt-1 shrink-0 rounded-2xl border border-zinc-200/70 bg-white/70 p-3 shadow-[0_10px_30px_rgba(24,24,27,0.08)] backdrop-blur-md">
-          <div className="mb-3 flex items-start justify-between gap-2 px-1">
-            <div className="min-w-0 flex flex-1 flex-wrap items-center gap-2">
+        <>
+          <div className="mb-2 flex items-center justify-between gap-2 px-2 pt-8">
+            <Link
+              href="/study"
+              className="text-sm font-medium text-zinc-700 hover:text-zinc-900"
+            >
+              ← 뒤로
+            </Link>
+            <div className="min-w-0 flex items-center gap-2">
               <span className="inline-flex h-6 shrink-0 items-center rounded-full border border-zinc-300/70 bg-white/75 px-2.5 text-xs font-semibold text-zinc-700">
                 세트 선택
               </span>
               <p className="text-xs text-zinc-500">단계별로 열려요</p>
             </div>
-            <button
-              type="button"
-              disabled={openingAllWords}
-              onClick={() => void openAllOpenedWords()}
-              className="shrink-0 rounded-full border border-pink-200/90 bg-gradient-to-b from-pink-50/95 to-pink-100/80 px-3 py-1.5 text-xs font-semibold text-pink-950 shadow-[0_2px_8px_rgba(190,24,93,0.12)] transition hover:border-pink-300/90 hover:from-pink-50 hover:to-pink-100 disabled:cursor-wait disabled:opacity-60"
-            >
-              {openingAllWords ? "불러오는 중…" : "모든 단어"}
-            </button>
           </div>
-          <div className="pr-1">
-            <div className="grid grid-cols-3 gap-2.5">
+          <section className="mb-2 shrink-0 rounded-2xl border border-zinc-200/70 bg-white/70 p-3 shadow-[0_10px_30px_rgba(24,24,27,0.08)] backdrop-blur-md">
+          <div className="pr-1 pb-[max(0.5rem,env(safe-area-inset-bottom,0px))]">
+            <div className="flex flex-col gap-2.5">
             {Array.from({ length: totalBatches }, (_, i) => {
               const unlocked = i <= clearedBatches;
-              const active = i === selectedBatch;
-              const batchLabel = `第${i + 1}`;
+              const batchLabel = `${i + 1}장`;
+              const start = i * batchSize;
+              const wordsInBatch = words.slice(start, start + batchSize);
+              const totalWords = wordsInBatch.length;
+              const studiedWords = wordsInBatch.filter(
+                (w) => w.seenInStudy
+              ).length;
+              const progress =
+                totalWords > 0 ? Math.round((studiedWords / totalWords) * 100) : 0;
+              const emphasized = i === Math.min(clearedBatches, totalBatches - 1);
+              const fillStrideSec =
+                SET_PROGRESS_FILL_DURATION_SEC * SET_PROGRESS_FILL_OVERLAP_RATIO;
+              const fillDelaySec =
+                SET_PROGRESS_FILL_START_DELAY_SEC + i * fillStrideSec;
+
               return (
                 <button
                   key={`batch-${i + 1}`}
                   type="button"
                   disabled={!unlocked}
                   onClick={() => openBatch(i)}
-                  className={`relative aspect-square rounded-2xl border px-2 py-2 text-lg font-semibold tracking-tight transition ${
-                    active
-                      ? "border-zinc-900 bg-zinc-900 text-white shadow-[0_8px_22px_rgba(24,24,27,0.28)]"
-                      : unlocked
-                        ? "border-zinc-200/80 bg-white/85 text-zinc-700 shadow-[0_4px_14px_rgba(24,24,27,0.08)] hover:-translate-y-0.5 hover:border-zinc-300/80 hover:bg-white"
-                        : "cursor-not-allowed border-zinc-200/80 bg-zinc-100/85 text-zinc-500"
+                  className={`relative rounded-2xl border px-4 py-3.5 text-left transition ${
+                    unlocked
+                      ? emphasized
+                        ? "border-pink-300/80 bg-pink-50/70 shadow-[0_8px_24px_rgba(190,24,93,0.12)]"
+                        : "border-zinc-200/80 bg-white/90 shadow-[0_8px_22px_rgba(24,24,27,0.08)] hover:border-zinc-300/80 hover:bg-white"
+                      : "cursor-not-allowed border-zinc-200/70 bg-zinc-100/80 text-zinc-500 opacity-80"
                   }`}
                 >
-                  <span className={`${unlocked ? "" : "opacity-45"}`}>{batchLabel}</span>
-                  {!unlocked ? (
-                    <span className="pointer-events-none absolute inset-0 flex items-center justify-center text-3xl opacity-60">
-                      🔒
-                    </span>
-                  ) : null}
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-base font-semibold tracking-tight text-zinc-900">
+                        {batchLabel}
+                      </p>
+                      <p className="mt-0.5 text-xs font-medium text-zinc-500">
+                        {totalWords} 단어
+                      </p>
+                    </div>
+                    {!unlocked ? (
+                      <span
+                        className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-zinc-300/80 bg-white/75 text-sm"
+                        aria-label="잠금됨"
+                      >
+                        🔒
+                      </span>
+                    ) : (
+                      <span className="text-xs font-semibold tabular-nums text-zinc-600">
+                        <AnimatedPercent
+                          value={progress}
+                          delaySec={fillDelaySec}
+                        />
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-zinc-200/75">
+                    <motion.div
+                      initial={{ width: 0 }}
+                      animate={{ width: `${unlocked ? progress : 0}%` }}
+                      transition={{
+                        duration: SET_PROGRESS_FILL_DURATION_SEC,
+                        ease: SET_PROGRESS_FILL_EASE,
+                        delay: fillDelaySec,
+                      }}
+                      className={`h-full rounded-full ${
+                        unlocked
+                          ? jlptLevelProgressBarFillPastelClass(level)
+                          : "bg-zinc-300/80"
+                      }`}
+                    />
+                  </div>
                 </button>
               );
             })}
             </div>
           </div>
         </section>
+        </>
       )}
 
       <div
@@ -662,8 +776,12 @@ export function StudyLevelClient({ level }: { level: string }) {
                 <StudyCard
                   favoriteWordId={current.id}
                   hideKanji={visibility.hideKanji}
-                  hideReading={visibility.hideReading}
-                  hideMeaning={visibility.hideMeaning}
+                  hideReading={visibility.hideReading || maskReadingMeaning}
+                  hideMeaning={visibility.hideMeaning || maskReadingMeaning}
+                  readingMeaningMasked={maskReadingMeaning}
+                  onToggleReadingMeaningMask={() =>
+                    setMaskReadingMeaning((prev) => !prev)
+                  }
                   data={{
                     kanji: current.kanji,
                     reading: current.reading,
@@ -696,13 +814,7 @@ export function StudyLevelClient({ level }: { level: string }) {
                     </div>
                   </div>
                   <div className="mx-auto flex w-full min-h-0 flex-1 flex-col justify-center px-1 pb-4">
-                    <p
-                      className={`text-center font-bold leading-snug text-zinc-900 ${
-                        q.type === "example-blank"
-                          ? "text-2xl sm:text-3xl"
-                          : "text-5xl sm:text-6xl"
-                      }`}
-                    >
+                    <p className="text-center font-bold leading-snug text-zinc-900 text-5xl sm:text-6xl">
                       {q.prompt}
                     </p>
                     <ul className="mt-6 flex flex-col gap-2">
@@ -743,8 +855,7 @@ export function StudyLevelClient({ level }: { level: string }) {
                       })}
                     </ul>
                     <p className="mt-5 text-center text-sm leading-relaxed text-zinc-600">
-                      모든 문제를 맞혀야 세트 통과입니다. 통과하면 다음 세트가
-                      열립니다.
+                      모든 문제를 맞혀야 세트 통과입니다.
                     </p>
                     {examPicked !== null ? (
                       <p className="mt-3 text-center text-sm text-zinc-500">
@@ -772,12 +883,6 @@ export function StudyLevelClient({ level }: { level: string }) {
         {!loading && !error && phase === "batch-result" && examResult && (
           <div className="flex flex-1 flex-col justify-center px-1 py-4">
             <div className="rounded-xl border border-zinc-200/70 bg-white/75 p-4 shadow-sm backdrop-blur-md">
-              <Link
-                href={`/study/${encodeURIComponent(level)}`}
-                className="mb-3 inline-block rounded-lg border border-zinc-200/80 bg-white/85 px-3 py-2 text-sm font-medium text-zinc-700 transition hover:border-pink-200/80 hover:bg-pink-50/55"
-              >
-                단어 공부하러 가기
-              </Link>
               {examResult.pass ? (
                 <p className="text-lg font-semibold text-emerald-800">
                   세트 통과 ({examResult.score}/{examResult.total})
@@ -804,12 +909,15 @@ export function StudyLevelClient({ level }: { level: string }) {
         )}
       </div>
 
-      {!loading && !error && phase !== "batch-exam" && (
+      {!loading &&
+        !error &&
+        phase !== "batch-exam" &&
+        !(phase === "study" && selectedBatch === null && openedBrowseWords === null) && (
         <BottomNav
           onStartTest={startBatchExam}
+          onOpenSetSelect={openSetSelect}
           resultOnlyHome={phase === "batch-result"}
           hideTest={openedBrowseWords !== null}
-          settingsHref={settingsHref}
         />
       )}
     </main>

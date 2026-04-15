@@ -38,6 +38,8 @@ export function StudyCard({
   hideKanji = false,
   hideReading = false,
   hideMeaning = false,
+  readingMeaningMasked = false,
+  onToggleReadingMeaningMask,
 }: {
   data: StudyCardData;
   /** 있으면 카드 오른쪽 상단(정답률 행)에 즐겨찾기 버튼 표시 */
@@ -45,6 +47,10 @@ export function StudyCard({
   hideKanji?: boolean;
   hideReading?: boolean;
   hideMeaning?: boolean;
+  /** 스터디 화면 전용: 히라가나/뜻 빠른 가리기 토글 상태 */
+  readingMeaningMasked?: boolean;
+  /** 스터디 화면 전용: 히라가나/뜻 빠른 가리기 토글 핸들러 */
+  onToggleReadingMeaningMask?: () => void;
 }) {
   const reading = data.reading?.trim() || "—";
   const meaning = data.meaning?.trim() || "—";
@@ -88,9 +94,59 @@ export function StudyCard({
             </p>
           )}
         </div>
-        {favoriteWordId ? (
-          <FavoriteStarButton wordId={favoriteWordId} className="-mt-0.5 shrink-0" />
-        ) : null}
+        {(onToggleReadingMeaningMask || favoriteWordId) && (
+          <div className="flex shrink-0 items-center gap-1">
+            {onToggleReadingMeaningMask ? (
+              <button
+                type="button"
+                onClick={onToggleReadingMeaningMask}
+                aria-label={
+                  readingMeaningMasked
+                    ? "히라가나와 뜻 가리기 해제"
+                    : "히라가나와 뜻 가리기"
+                }
+                aria-pressed={readingMeaningMasked}
+                className={`-mt-0.5 flex h-10 w-10 items-center justify-center rounded-lg border border-zinc-200/75 bg-white/78 shadow-sm backdrop-blur-md transition hover:bg-pink-50/55 ${
+                  readingMeaningMasked ? "text-zinc-700" : "text-zinc-500"
+                }`}
+              >
+                {readingMeaningMasked ? (
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    className="h-5 w-5 stroke-current"
+                    strokeWidth={1.8}
+                  >
+                    <path
+                      d="M3 3l18 18M10.6 10.6a2 2 0 102.8 2.8M9.9 5.1A10.9 10.9 0 0112 5c5.7 0 9.9 4.3 11 7-1 2.4-4.3 5.9-8.9 6.8M6.1 6.1C3.9 7.6 2.4 9.8 2 12c.6 1.7 2.7 4.6 6 6"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                ) : (
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    className="h-5 w-5 stroke-current"
+                    strokeWidth={1.8}
+                  >
+                    <path
+                      d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                    <circle cx="12" cy="12" r="3" />
+                  </svg>
+                )}
+              </button>
+            ) : null}
+            {favoriteWordId ? (
+              <FavoriteStarButton wordId={favoriteWordId} className="-mt-0.5 shrink-0" />
+            ) : null}
+          </div>
+        )}
       </div>
 
       <div className="shrink-0 text-center">

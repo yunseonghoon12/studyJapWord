@@ -3,7 +3,7 @@ import { getFavoriteWordIds } from "@/lib/favorites";
 import { readJsonResponse } from "@/lib/read-json-response";
 
 export const VOCAB_CACHE_TTL_MS = 1000 * 60 * 30;
-export const VOCAB_CACHE_VERSION = 2;
+export const VOCAB_CACHE_VERSION = 3;
 
 export type VocabularyWordRow = {
   id: string;

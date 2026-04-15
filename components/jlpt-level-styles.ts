@@ -98,8 +98,21 @@ const PROGRESS_BAR_FILL: Record<JlptLevel, string> = {
   N5: "bg-amber-500",
 };
 
+/** 세트 선택용 파스텔 진행 바 채움색 — 뱃지 계열 유지, 채도 완화 */
+const PROGRESS_BAR_FILL_PASTEL: Record<JlptLevel, string> = {
+  N1: "bg-sky-300/85",
+  N2: "bg-violet-300/85",
+  N3: "bg-rose-300/85",
+  N4: "bg-orange-300/85",
+  N5: "bg-amber-300/85",
+};
+
 export function jlptLevelProgressBarFillClass(level: string): string {
   return PROGRESS_BAR_FILL[normalize(level)];
+}
+
+export function jlptLevelProgressBarFillPastelClass(level: string): string {
+  return PROGRESS_BAR_FILL_PASTEL[normalize(level)];
 }
 
 export function jlptLevelProgressPillClass(level: string): string {

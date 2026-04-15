@@ -66,7 +66,16 @@ export async function GET(request: Request) {
 
   const seenRows = await prisma.word.findMany({
     where: {
-      userWord: { is: { seenInStudy: true, isExcluded: false } },
+      userWord: {
+        is: {
+          isExcluded: false,
+          OR: [
+            { seenInStudy: true },
+            { correctCount: { gt: 0 } },
+            { wrongCount: { gt: 0 } },
+          ],
+        },
+      },
     },
     include: { userWord: true },
   });

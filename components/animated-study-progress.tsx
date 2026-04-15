@@ -68,7 +68,7 @@ export function AnimatedStudyProgress({ rows }: Props) {
     >
       <p className={studyIndexSectionTitleClass}>레벨별 학습 진행률</p>
       <motion.ul
-        className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-5"
+        className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2"
         variants={list}
       >
         {rows.map((row) => {

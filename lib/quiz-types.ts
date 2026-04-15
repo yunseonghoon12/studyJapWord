@@ -2,7 +2,6 @@
 export type QuizType =
   | "kanji-meaning"
   | "kanji-reading"
-  | "example-blank"
   | "meaning-word";
 
 export type QuizQuestion = {
@@ -17,7 +16,6 @@ export type QuizQuestion = {
 export const QUIZ_TYPES: QuizType[] = [
   "kanji-meaning",
   "kanji-reading",
-  "example-blank",
   "meaning-word",
 ];
 
@@ -27,8 +25,6 @@ export function quizTypeLabel(type: QuizType): string {
       return "뜻 고르기";
     case "kanji-reading":
       return "읽기 고르기";
-    case "example-blank":
-      return "예문 빈칸 고르기";
     case "meaning-word":
       return "뜻보고 단어 고르기";
     default:
@@ -43,8 +39,6 @@ export function quizTypeInstruction(type: QuizType): string {
       return "뜻을 고르세요.";
     case "kanji-reading":
       return "읽기를 고르세요.";
-    case "example-blank":
-      return "빈칸에 알맞은 단어를 고르세요.";
     case "meaning-word":
       return "뜻에 맞는 단어(표기)를 고르세요.";
     default:

@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { AnimatedHomeMainLinks } from "@/components/animated-home-main-links";
 import { prisma } from "@/lib/prisma";
 
@@ -36,7 +35,7 @@ export default async function HomePage() {
           일본어 단어
         </h1>
         <p className="mt-2 text-lg text-zinc-600">
-          단어를 익히고 시험으로 복습하세율.
+          단어를 익히고 시험으로 복습하세요.
         </p>
       </div>
 
@@ -51,13 +50,6 @@ export default async function HomePage() {
         linkClassName={HOME_MAIN_LINK}
         attendanceLinkClassName={HOME_ATTENDANCE_LINK}
       />
-
-      <Link
-        href="/settings"
-        className="text-center text-sm font-medium text-zinc-600 transition hover:text-pink-900"
-      >
-        설정 · 세트당 단어 수
-      </Link>
       </main>
     </div>
   );
